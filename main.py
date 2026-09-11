@@ -635,7 +635,7 @@ def convert_pdf_all_to_roboto(pdf_bytes: bytes) -> tuple[bytes, int]:
         except Exception:
             continue
 
-    out_pdf = doc.tobytes(garbage=4, deflate=True, clean=True)
+    out_pdf = doc.tobytes(garbage=4, deflate=True, clean=False)
     doc.close()
     return out_pdf, total_spans_converted
 
