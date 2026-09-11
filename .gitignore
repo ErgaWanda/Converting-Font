@@ -1,0 +1,114 @@
+# ==========================================
+# Python Bytecode & Cache
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / Packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller / Build Artifacts
+*.manifest
+*.spec
+
+# Unit test & Coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# ==========================================
+# Virtual Environments
+# ==========================================
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+
+# ==========================================
+# IDEs & Code Editors
+# ==========================================
+.vscode/
+*.code-workspace
+.idea/
+*.iml
+*.iws
+*.sublime-workspace
+*.sublime-project
+*~
+*.swp
+*.swo
+
+# ==========================================
+# Operating System Files
+# ==========================================
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ==========================================
+# Application & Temporary Files
+# ==========================================
+# Office temporary lock files
+~$*.docx
+~$*.xlsx
+~$*.pptx
+
+# Logs & Temporary outputs
+*.log
+*.tmp
+*.temp
+test_out.pdf
+test_*.pdf
+test_*.png
+justify_*.png
+final_*.png
+
+# Batch conversion outputs
+*_ROBOTO/
+converted_*/
+output/
+outputs/

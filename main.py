@@ -1,0 +1,876 @@
+import io
+import os
+import re
+import zipfile
+import urllib.request
+import xml.etree.ElementTree as ET
+
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
+from fastapi.templating import Jinja2Templates
+from starlette.requests import Request
+import pandas as pd
+import docx
+from docx.oxml.ns import qn
+import pymupdf
+
+app = FastAPI(
+    title="Converting Font",
+    description="Font Converter and Batch Document Processor",
+    version="1.0.0"
+)
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
+DUMMY_DIR = os.path.join(BASE_DIR, "dummy")
+FONTS_DIR = os.path.join(BASE_DIR, "assets", "fonts")
+
+os.makedirs(TEMPLATES_DIR, exist_ok=True)
+os.makedirs(DUMMY_DIR, exist_ok=True)
+os.makedirs(FONTS_DIR, exist_ok=True)
+
+templates = Jinja2Templates(directory=TEMPLATES_DIR)
+
+ROBOTO_FONTS = {
+    'regular': os.path.join(FONTS_DIR, 'Roboto-Regular.ttf'),
+    'bold': os.path.join(FONTS_DIR, 'Roboto-Bold.ttf'),
+    'italic': os.path.join(FONTS_DIR, 'Roboto-Italic.ttf'),
+    'bolditalic': os.path.join(FONTS_DIR, 'Roboto-BoldItalic.ttf')
+}
+
+def ensure_roboto_fonts():
+    urls = {
+        'Roboto-Regular.ttf': 'https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-Regular.ttf',
+        'Roboto-Bold.ttf': 'https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-Bold.ttf',
+        'Roboto-Italic.ttf': 'https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-Italic.ttf',
+        'Roboto-BoldItalic.ttf': 'https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-BoldItalic.ttf'
+    }
+    for filename, url in urls.items():
+        dest = os.path.join(FONTS_DIR, filename)
+        if not os.path.exists(dest) or os.path.getsize(dest) == 0:
+            try:
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    data = resp.read()
+                    with open(dest, 'wb') as f:
+                        f.write(data)
+            except Exception as e:
+                print(f"Failed to download {filename}: {e}")
+
+ensure_roboto_fonts()
+
+def convert_xml_arial_to_roboto(xml_bytes: bytes) -> tuple[bytes, int]:
+    count = 0
+    font_pattern = re.compile(r'\b(arial|times(?:\s+new\s+roman)?)\b', re.IGNORECASE)
+    try:
+        xml_str = xml_bytes.decode('utf-8')
+    except UnicodeDecodeError:
+        xml_str = xml_bytes.decode('latin-1', errors='replace')
+
+    try:
+        root = ET.fromstring(xml_str)
+        for elem in root.iter():
+            for key, val in list(elem.attrib.items()):
+                if val and font_pattern.search(val):
+                    elem.attrib[key] = font_pattern.sub('Roboto', val)
+                    count += 1
+                elif val and any(f in val for f in ['Arial', 'Times']):
+                    new_val = val.replace('ArialMT', 'Roboto-Regular').replace('Arial-BoldMT', 'Roboto-Bold').replace('Arial', 'Roboto')
+                    new_val = new_val.replace('TimesNewRomanPSMT', 'Roboto-Regular').replace('Times-Roman', 'Roboto-Regular').replace('Times', 'Roboto')
+                    elem.attrib[key] = new_val
+                    count += 1
+
+            if elem.text and font_pattern.search(elem.text):
+                elem.text = font_pattern.sub('Roboto', elem.text)
+                count += 1
+
+            if elem.tail and font_pattern.search(elem.tail):
+                elem.tail = font_pattern.sub('Roboto', elem.tail)
+                count += 1
+
+        out_stream = io.BytesIO()
+        tree = ET.ElementTree(root)
+        tree.write(out_stream, encoding='utf-8', xml_declaration=True)
+        converted_xml = out_stream.getvalue()
+
+    except Exception:
+        converted_str, count = font_pattern.subn('Roboto', xml_str)
+        converted_xml = converted_str.encode('utf-8')
+
+    converted_str = converted_xml.decode('utf-8', errors='replace')
+    extra_subs, extra_count = font_pattern.subn('Roboto', converted_str)
+    if extra_count > 0:
+        converted_xml = extra_subs.encode('utf-8')
+        count += extra_count
+
+    return converted_xml, count
+
+def convert_docx_arial_to_roboto(docx_bytes: bytes) -> tuple[bytes, int]:
+    doc = docx.Document(io.BytesIO(docx_bytes))
+    count = 0
+
+    def process_run(run):
+        nonlocal count
+        changed = False
+
+        if run.font.name and any(f in run.font.name.lower() for f in ['arial', 'times']):
+            run.font.name = 'Roboto'
+            changed = True
+
+        rPr = run._r.get_or_add_rPr()
+        rFonts = rPr.find(qn('w:rFonts'))
+        if rFonts is not None:
+            for attr in ['ascii', 'hAnsi', 'cs', 'eastAsia']:
+                val = rFonts.get(qn(f'w:{attr}'))
+                if val and any(f in val.lower() for f in ['arial', 'times']):
+                    rFonts.set(qn(f'w:{attr}'), 'Roboto')
+                    changed = True
+        else:
+            if changed or (run.font.name == 'Roboto'):
+                rFonts_elem = docx.oxml.OxmlElement('w:rFonts')
+                rFonts_elem.set(qn('w:ascii'), 'Roboto')
+                rFonts_elem.set(qn('w:hAnsi'), 'Roboto')
+                rFonts_elem.set(qn('w:cs'), 'Roboto')
+                rPr.append(rFonts_elem)
+
+        if changed:
+            count += 1
+
+    for style in doc.styles:
+        try:
+            if hasattr(style, 'font') and style.font.name and any(f in style.font.name.lower() for f in ['arial', 'times']):
+                style.font.name = 'Roboto'
+                count += 1
+        except Exception:
+            pass
+
+    for p in doc.paragraphs:
+        for run in p.runs:
+            process_run(run)
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    for run in p.runs:
+                        process_run(run)
+
+    for section in doc.sections:
+        for header_type in [section.header, section.first_page_header, section.even_page_header]:
+            if header_type is not None:
+                for p in header_type.paragraphs:
+                    for run in p.runs:
+                        process_run(run)
+                for table in header_type.tables:
+                    for row in table.rows:
+                        for cell in row.cells:
+                            for p in cell.paragraphs:
+                                for run in p.runs:
+                                    process_run(run)
+
+        for footer_type in [section.footer, section.first_page_footer, section.even_page_footer]:
+            if footer_type is not None:
+                for p in footer_type.paragraphs:
+                    for run in p.runs:
+                        process_run(run)
+                for table in footer_type.tables:
+                    for row in table.rows:
+                        for cell in row.cells:
+                            for p in cell.paragraphs:
+                                for run in p.runs:
+                                    process_run(run)
+
+    out_stream = io.BytesIO()
+    doc.save(out_stream)
+    return out_stream.getvalue(), count
+
+def _remove_text_from_content_stream(stream_text: str) -> str:
+    out = []
+    i = 0
+    n = len(stream_text)
+    in_text = False
+    while i < n:
+        if not in_text:
+            if (i == 0 or stream_text[i-1].isspace()) and stream_text[i:i+2] == 'BT' and (i+2 == n or stream_text[i+2].isspace()):
+                in_text = True
+                i += 2
+                continue
+            out.append(stream_text[i])
+            i += 1
+        else:
+            if stream_text[i] == '(':
+                i += 1
+                depth = 1
+                while i < n and depth > 0:
+                    if stream_text[i] == '\\':
+                        i += 2
+                    elif stream_text[i] == '(':
+                        depth += 1
+                        i += 1
+                    elif stream_text[i] == ')':
+                        depth -= 1
+                        i += 1
+                    else:
+                        i += 1
+                continue
+            elif stream_text[i] == '<' and (i+1 < n and stream_text[i+1] != '<'):
+                i += 1
+                while i < n and stream_text[i] != '>':
+                    i += 1
+                if i < n:
+                    i += 1
+                continue
+            elif stream_text[i-1].isspace() and stream_text[i:i+2] == 'ET' and (i+2 == n or stream_text[i+2].isspace()):
+                in_text = False
+                i += 2
+                continue
+            else:
+                i += 1
+    return ''.join(out)
+
+
+ROUND_BULLETS = {'\uf0b7', '\uf06c', '\uf06d', '\u25cf', '\u25cb', '\u25ef'}
+SQUARE_BULLETS = {
+    '\uf0a7', '\uf06e', '\uf071', '\uf0de', '\uf0d8', '\uf0a8',
+    '\u25aa', '\u25a0', '\u25fe', '\u25fc', '\u25a1',
+    '\u25c6', '\u25c7', '\xa7', '\x00'
+}
+
+def _is_square_bullet(text: str, font_str: str = '') -> bool:
+    if text in SQUARE_BULLETS:
+        return True
+    if len(text) == 1:
+        code = ord(text)
+        if 0xF000 <= code <= 0xF0FF and text not in ROUND_BULLETS:
+            return True
+        if 'wingdings' in font_str and (text in ['n', '\xa7', 'q'] or text not in ROUND_BULLETS):
+            return True
+    return False
+
+
+def convert_pdf_all_to_roboto(pdf_bytes: bytes) -> tuple[bytes, int]:
+    reg_path = ROBOTO_FONTS['regular']
+    bold_path = ROBOTO_FONTS['bold']
+    italic_path = ROBOTO_FONTS['italic']
+    bolditalic_path = ROBOTO_FONTS['bolditalic']
+
+    font_cache = {}
+    def get_font_obj(path):
+        if path and path not in font_cache and os.path.exists(path):
+            font_cache[path] = pymupdf.Font(fontfile=path)
+        return font_cache.get(path)
+
+    doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+    total_spans_converted = 0
+
+    all_pages_elements = []
+    for page in doc:
+        d = page.get_text("dict")
+        raw_spans = []
+        for b in d.get("blocks", []):
+            if b.get("type") != 0:
+                continue
+            for line in b.get("lines", []):
+                for s in line.get("spans", []):
+                    if s.get("text", "").strip():
+                        raw_spans.append(s)
+
+        superseded_ids = set()
+        for i, s1 in enumerate(raw_spans):
+            t1 = s1.get("text", "").strip().lower()
+            r1 = pymupdf.Rect(s1["bbox"])
+            for s2 in raw_spans[i+1:]:
+                t2 = s2.get("text", "").strip().lower()
+                if t1 == t2 or (t1 in t2 and len(t1) > 5) or (t2 in t1 and len(t2) > 5):
+                    r2 = pymupdf.Rect(s2["bbox"])
+                    if r1.intersects(r2):
+                        intersect_area = pymupdf.Rect(r1).intersect(r2).get_area()
+                        min_area = min(r1.get_area(), r2.get_area())
+                        if min_area > 0 and (intersect_area / min_area) > 0.4:
+                            superseded_ids.add(id(s1))
+                            break
+
+        x1_counts = {}
+        for b in d.get("blocks", []):
+            if b.get("type") != 0:
+                continue
+            for l in b.get("lines", []):
+                txt = " ".join(s.get("text", "") for s in l.get("spans", []) if id(s) not in superseded_ids).strip()
+                if len(txt.split()) >= 3:
+                    x1_val = round(l["bbox"][2], 0)
+                    x1_counts[x1_val] = x1_counts.get(x1_val, 0) + 1
+        common_margins = [k for k, v in x1_counts.items() if v >= 2]
+
+        elements_to_draw = []
+        for b in d.get("blocks", []):
+            if b.get("type") != 0:
+                continue
+            lines = b.get("lines", [])
+            if not lines:
+                continue
+
+            grouped_lines = []
+            for l in lines:
+                spans = [s for s in l.get("spans", []) if s.get("text", "").strip() and id(s) not in superseded_ids]
+                if not spans:
+                    continue
+                base_y = round(spans[0]["origin"][1], 1)
+                merged = False
+                for g in grouped_lines:
+                    if abs(g["baseline_y"] - base_y) <= 1.2:
+                        g["lines"].append(l)
+                        g["spans"].extend(spans)
+                        g["bbox"] = (
+                            min(g["bbox"][0], l["bbox"][0]),
+                            min(g["bbox"][1], l["bbox"][1]),
+                            max(g["bbox"][2], l["bbox"][2]),
+                            max(g["bbox"][3], l["bbox"][3])
+                        )
+                        merged = True
+                        break
+                if not merged:
+                    grouped_lines.append({
+                        "baseline_y": base_y,
+                        "lines": [l],
+                        "spans": list(spans),
+                        "bbox": tuple(l["bbox"])
+                    })
+
+            for g in grouped_lines:
+                g["spans"].sort(key=lambda s: s["origin"][0])
+
+            if not grouped_lines:
+                continue
+
+            block_max_x1 = max(g["bbox"][2] for g in grouped_lines)
+            aligned_right_count = sum(1 for g in grouped_lines if abs(g["bbox"][2] - block_max_x1) <= 2.5)
+
+            for g in grouped_lines:
+                spans = g["spans"]
+                if not spans:
+                    continue
+
+                prefix_span = None
+                body_spans = spans
+                if len(spans) >= 2:
+                    s0 = spans[0]
+                    t0 = s0.get("text", "").strip()
+                    is_bullet = (
+                        _is_square_bullet(t0, s0.get("font", "")) or
+                        t0 in ROUND_BULLETS or
+                        bool(re.match(r'^\(?[0-9a-zA-Z]{1,3}[\.\)]$', t0))
+                    )
+                    if is_bullet and (spans[1]["origin"][0] - s0["bbox"][2]) > 4.0:
+                        prefix_span = s0
+                        body_spans = spans[1:]
+
+                body_x0 = body_spans[0]["origin"][0] if body_spans else g["bbox"][0]
+                target_x1 = g["bbox"][2]
+                target_w = target_x1 - body_x0
+                is_right_aligned = (aligned_right_count >= 2 and abs(target_x1 - block_max_x1) <= 2.5) or any(abs(target_x1 - cm) <= 2.5 for cm in common_margins)
+
+                words_data = []
+                for s in body_spans:
+                    stext = s.get("text", "")
+                    if not stext:
+                        continue
+                    sz = s.get("size", 10.0)
+                    c = s.get("color", 0)
+                    color = (((c >> 16) & 255) / 255.0, ((c >> 8) & 255) / 255.0, (c & 255) / 255.0)
+                    flags = s.get("flags", 0)
+                    font_str = s.get("font", "").lower()
+                    is_bold = bool(flags & 16) or any(w in font_str for w in ['bold', 'medium', 'semibold', 'semi-bold', 'demi', 'black', 'heavy'])
+                    is_italic = bool(flags & 2) or 'italic' in font_str or 'oblique' in font_str
+                    if is_bold and is_italic and os.path.exists(bolditalic_path):
+                        fn, ff = 'Roboto-BoldItalic', bolditalic_path
+                    elif is_bold and os.path.exists(bold_path):
+                        fn, ff = 'Roboto-Bold', bold_path
+                    elif is_italic and os.path.exists(italic_path):
+                        fn, ff = 'Roboto-Italic', italic_path
+                    elif os.path.exists(reg_path):
+                        fn, ff = 'Roboto-Regular', reg_path
+                    else:
+                        fn, ff = 'helv', None
+                    sf_obj = get_font_obj(ff)
+                    for rb in ROUND_BULLETS:
+                        stext = stext.replace(rb, '\u2022')
+                    words = [w for w in stext.split() if w]
+                    for w in words:
+                        w_len = sf_obj.text_length(w, fontsize=sz) if sf_obj else sz * 0.5 * len(w)
+                        words_data.append({
+                            'word': w, 'fn': fn, 'ff': ff, 'sz': sz, 'color': color,
+                            'w': w_len, 'y': s['origin'][1], 'f_obj': sf_obj
+                        })
+
+                has_square = any(_is_square_bullet(s.get("text", "").strip(), s.get("font", "").lower()) for s in body_spans)
+                total_words = len(words_data)
+                total_words_w = sum(wd['w'] for wd in words_data)
+                default_sp = words_data[0]['f_obj'].text_length(' ', fontsize=words_data[0]['sz']) if words_data else 2.0
+
+                can_justify = False
+                if is_right_aligned and not has_square and total_words >= 2 and target_w > total_words_w:
+                    gaps = total_words - 1
+                    gap_w = (target_w - total_words_w) / gaps
+                    if default_sp * 0.6 <= gap_w <= default_sp * 6.5:
+                        can_justify = True
+
+                if can_justify:
+                    if prefix_span:
+                        p_txt = prefix_span.get("text", "").strip()
+                        p_orig = pymupdf.Point(prefix_span["origin"])
+                        p_sz = prefix_span.get("size", 10.0)
+                        p_c = prefix_span.get("color", 0)
+                        p_col = (((p_c >> 16) & 255) / 255.0, ((p_c >> 8) & 255) / 255.0, (p_c & 255) / 255.0)
+                        p_flags = prefix_span.get("flags", 0)
+                        p_fstr = prefix_span.get("font", "").lower()
+                        if _is_square_bullet(p_txt, p_fstr):
+                            bw = p_sz * 0.38
+                            bh = p_sz * 0.38
+                            r = pymupdf.Rect(p_orig.x, p_orig.y - p_sz * 0.48, p_orig.x + bw, p_orig.y - p_sz * 0.48 + bh)
+                            elements_to_draw.append(('rect', r, p_col))
+                        else:
+                            for rb in ROUND_BULLETS:
+                                p_txt = p_txt.replace(rb, '\u2022')
+                            p_bold = bool(p_flags & 16) or any(w in p_fstr for w in ['bold', 'medium', 'semibold', 'semi-bold', 'demi', 'black', 'heavy'])
+                            p_italic = bool(p_flags & 2) or 'italic' in p_fstr or 'oblique' in p_fstr
+                            if p_bold and p_italic and os.path.exists(bolditalic_path):
+                                p_fn, p_ff = 'Roboto-BoldItalic', bolditalic_path
+                            elif p_bold and os.path.exists(bold_path):
+                                p_fn, p_ff = 'Roboto-Bold', bold_path
+                            elif p_italic and os.path.exists(italic_path):
+                                p_fn, p_ff = 'Roboto-Italic', italic_path
+                            elif os.path.exists(reg_path):
+                                p_fn, p_ff = 'Roboto-Regular', reg_path
+                            else:
+                                p_fn, p_ff = 'helv', None
+                            elements_to_draw.append(('text', p_orig, p_txt, p_fn, p_ff, p_sz, p_col))
+
+                    curr_x = body_x0
+                    gaps = total_words - 1
+                    gap_w = (target_w - total_words_w) / gaps
+                    for wd in words_data:
+                        elements_to_draw.append(('text', pymupdf.Point(curr_x, wd['y']), wd['word'], wd['fn'], wd['ff'], wd['sz'], wd['color']))
+                        curr_x += wd['w'] + gap_w
+                    continue
+
+                orig_line_w = g["bbox"][2] - g["bbox"][0]
+                rob_line_w = 0.0
+                for s in spans:
+                    stext = s.get("text", "")
+                    if not stext:
+                        continue
+                    for rb in ROUND_BULLETS:
+                        stext = stext.replace(rb, '\u2022')
+                    s_sz = s.get("size", 10.0)
+                    s_flags = s.get("flags", 0)
+                    s_fstr = s.get("font", "").lower()
+                    s_bold = bool(s_flags & 16) or any(w in s_fstr for w in ['bold', 'medium', 'semibold', 'semi-bold', 'demi', 'black', 'heavy'])
+                    s_italic = bool(s_flags & 2) or 'italic' in s_fstr or 'oblique' in s_fstr
+                    if s_bold and s_italic and os.path.exists(bolditalic_path):
+                        s_ff = bolditalic_path
+                    elif s_bold and os.path.exists(bold_path):
+                        s_ff = bold_path
+                    elif s_italic and os.path.exists(italic_path):
+                        s_ff = italic_path
+                    elif os.path.exists(reg_path):
+                        s_ff = reg_path
+                    else:
+                        s_ff = None
+                    sf_obj = get_font_obj(s_ff)
+                    clean_st = stext.strip()
+                    if clean_st and _is_square_bullet(clean_st, s_fstr):
+                        rob_line_w += s_sz * 0.38
+                    else:
+                        rob_line_w += sf_obj.text_length(stext, fontsize=s_sz) if sf_obj else s_sz * 0.5 * len(stext)
+
+                line_scale = 1.0
+                if orig_line_w > 0 and rob_line_w > orig_line_w * 1.005:
+                    line_scale = max(0.82, orig_line_w / rob_line_w)
+
+                prev_end_x = 0
+                for s in spans:
+                    text = s.get("text", "")
+                    if not text:
+                        continue
+
+                    origin = pymupdf.Point(s["origin"])
+                    size = s["size"] * line_scale
+                    c = s.get("color", 0)
+                    rv = ((c >> 16) & 255) / 255.0
+                    gv = ((c >> 8) & 255) / 255.0
+                    bv = (c & 255) / 255.0
+                    color = (rv, gv, bv)
+
+                    flags = s.get("flags", 0)
+                    font_str = s.get("font", "").lower()
+                    is_bold = bool(flags & 16) or any(w in font_str for w in ['bold', 'medium', 'semibold', 'semi-bold', 'demi', 'black', 'heavy'])
+                    is_italic = bool(flags & 2) or 'italic' in font_str or 'oblique' in font_str
+
+                    if is_bold and is_italic and os.path.exists(bolditalic_path):
+                        fn, ff = 'Roboto-BoldItalic', bolditalic_path
+                    elif is_bold and os.path.exists(bold_path):
+                        fn, ff = 'Roboto-Bold', bold_path
+                    elif is_italic and os.path.exists(italic_path):
+                        fn, ff = 'Roboto-Italic', italic_path
+                    elif os.path.exists(reg_path):
+                        fn, ff = 'Roboto-Regular', reg_path
+                    else:
+                        fn, ff = 'helv', None
+
+                    f_obj = get_font_obj(ff)
+
+                    for rb in ROUND_BULLETS:
+                        text = text.replace(rb, '\u2022')
+
+                    clean_t = text.strip()
+                    if clean_t and _is_square_bullet(clean_t, font_str):
+                        bw = size * 0.38
+                        bh = size * 0.38
+                        r = pymupdf.Rect(origin.x, origin.y - size * 0.48, origin.x + bw, origin.y - size * 0.48 + bh)
+                        elements_to_draw.append(('rect', r, color))
+                        prev_end_x = origin.x + bw
+                        continue
+
+                    if clean_t and any(_is_square_bullet(ch, font_str) for ch in text):
+                        curr_x = origin.x
+                        curr_y = origin.y
+                        buf = ''
+                        for ch in text:
+                            if _is_square_bullet(ch, font_str):
+                                if buf:
+                                    elements_to_draw.append(('text', pymupdf.Point(curr_x, curr_y), buf, fn, ff, size, color))
+                                    curr_x += f_obj.text_length(buf, fontsize=size) if f_obj else size * 0.5 * len(buf)
+                                    buf = ''
+                                bw = size * 0.38
+                                bh = size * 0.38
+                                r = pymupdf.Rect(curr_x, curr_y - size * 0.48, curr_x + bw, curr_y - size * 0.48 + bh)
+                                elements_to_draw.append(('rect', r, color))
+                                curr_x += size * 0.8
+                            else:
+                                buf += ch
+                        if buf:
+                            elements_to_draw.append(('text', pymupdf.Point(curr_x, curr_y), buf, fn, ff, size, color))
+                            curr_x += f_obj.text_length(buf, fontsize=size) if f_obj else size * 0.5 * len(buf)
+                        prev_end_x = curr_x
+                        continue
+
+                    if prev_end_x > 0 and origin.x < prev_end_x:
+                        origin = pymupdf.Point(prev_end_x, origin.y)
+
+                    span_w = f_obj.text_length(text, fontsize=size) if f_obj else size * 0.5 * len(text)
+                    prev_end_x = origin.x + span_w
+
+                    elements_to_draw.append(('text', origin, text, fn, ff, size, color))
+
+        all_pages_elements.append(elements_to_draw)
+
+    for xref in range(1, doc.xref_length()):
+        try:
+            obj_str = doc.xref_object(xref, compressed=False)
+            if '/Subtype /Form' in obj_str or '/Subtype/Form' in obj_str:
+                raw_data = doc.xref_stream(xref).decode('latin-1', errors='replace')
+                clean_data = _remove_text_from_content_stream(raw_data)
+                doc.update_stream(xref, clean_data.encode('latin-1'))
+        except Exception:
+            pass
+
+    for page_idx, page in enumerate(doc):
+        contents = page.get_contents()
+        for cx in contents:
+            try:
+                raw_data = doc.xref_stream(cx).decode('latin-1', errors='replace')
+                clean_data = _remove_text_from_content_stream(raw_data)
+                doc.update_stream(cx, clean_data.encode('latin-1'))
+            except Exception:
+                pass
+
+        for item in all_pages_elements[page_idx]:
+            try:
+                if item[0] == 'rect':
+                    page.draw_rect(item[1], color=None, fill=item[2], overlay=True)
+                    total_spans_converted += 1
+                elif item[0] == 'text':
+                    _, orig, txt, fn, ff, sz, col = item
+                    if ff:
+                        page.insert_text(orig, txt, fontname=fn, fontfile=ff, fontsize=sz, color=col, overlay=True)
+                    else:
+                        page.insert_text(orig, txt, fontname=fn, fontsize=sz, color=col, overlay=True)
+                    total_spans_converted += 1
+            except Exception:
+                continue
+
+    for xref in range(1, doc.xref_length()):
+        try:
+            obj_str = doc.xref_object(xref, compressed=False)
+            if not any(k in obj_str for k in ['/Type /Font', '/Type /FontDescriptor', '/FontName', '/BaseFont']):
+                continue
+
+            def repl(m):
+                key = m.group(1)
+                val = m.group(2)
+                lower = val.lower()
+                if 'roboto' in lower and not any(other in lower for other in ['times', 'arial', 'helv', 'courier']):
+                    return key + val
+
+                is_bold = bool(re.search(r'(bold|[-_,]bd\b|[-_,]b\b)', lower))
+                is_italic = bool(re.search(r'(italic|oblique|[-_,]it\b|[-_,]i\b)', lower))
+
+                if is_bold and is_italic:
+                    target = 'Roboto-BoldItalic'
+                elif is_bold:
+                    target = 'Roboto-Bold'
+                elif is_italic:
+                    target = 'Roboto-Italic'
+                else:
+                    target = 'Roboto-Regular'
+
+                return f'{key}/{target}'
+
+            new_obj = re.sub(r'(/BaseFont\s+)(/[^\s/<>()\[\]{}%]+)', repl, obj_str)
+            new_obj = re.sub(r'(/FontName\s+)(/[^\s/<>()\[\]{}%]+)', repl, new_obj)
+            new_obj = re.sub(r'(/FontFamily\s*)(\([^)]+\)|/[^\s/<>()\[\]{}%]+)', r'\1(Roboto)', new_obj)
+
+            if new_obj != obj_str:
+                doc.update_object(xref, new_obj)
+        except Exception:
+            continue
+
+    out_pdf = doc.tobytes(garbage=4, deflate=True, clean=True)
+    doc.close()
+    return out_pdf, total_spans_converted
+
+def load_dataset(file_bytes: bytes, filename: str) -> pd.DataFrame:
+    ext = filename.lower().split('.')[-1]
+    if ext == 'csv':
+        try:
+            df = pd.read_csv(io.BytesIO(file_bytes), dtype=str, keep_default_na=False, encoding='utf-8')
+        except UnicodeDecodeError:
+            df = pd.read_csv(io.BytesIO(file_bytes), dtype=str, keep_default_na=False, encoding='latin-1')
+    elif ext in ['xlsx', 'xls']:
+        df = pd.read_excel(io.BytesIO(file_bytes), dtype=str, keep_default_na=False)
+    else:
+        raise HTTPException(status_code=400, detail="Format file harus berupa CSV atau Excel (.xlsx, .xls)")
+
+    df.columns = [str(c).strip() for c in df.columns]
+    return df
+
+def get_document_clean_names(row: pd.Series, idx: int, columns: list[str]) -> tuple[str, str]:
+    id_val = None
+    for key in ['NO_POLIS', 'NOMOR_POLIS', 'POLIS', 'ID', 'NO', 'CODE']:
+        for c in columns:
+            if c.upper() == key:
+                id_val = str(row[c]).strip()
+                break
+        if id_val:
+            break
+
+    name_val = None
+    for key in ['NAMA', 'NAMA_NASABAH', 'NAME', 'CUSTOMER']:
+        for c in columns:
+            if c.upper() == key:
+                name_val = str(row[c]).strip()
+                break
+        if name_val:
+            break
+
+    clean_id = re.sub(r'[^a-zA-Z0-9_-]', '_', id_val) if id_val else f"DOC_{idx+1:04d}"
+    clean_name = ("_" + re.sub(r'[^a-zA-Z0-9_-]', '_', name_val)) if name_val else ""
+    return clean_id, clean_name
+
+def generate_batch_xml_zip(template_bytes: bytes, df: pd.DataFrame) -> tuple[io.BytesIO, int]:
+    try:
+        template_str = template_bytes.decode('utf-8')
+    except UnicodeDecodeError:
+        template_str = template_bytes.decode('latin-1', errors='replace')
+
+    zip_buffer = io.BytesIO()
+    total_generated = 0
+
+    with zipfile.ZipFile(zip_buffer, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
+        for idx, row in df.iterrows():
+            rendered_xml = template_str
+
+            for col in df.columns:
+                val = str(row[col]) if row[col] is not None else ""
+                patterns = [
+                    re.compile(r'\{\{\s*' + re.escape(col) + r'\s*\}\}', re.IGNORECASE),
+                    re.compile(r'\{' + re.escape(col) + r'\}', re.IGNORECASE),
+                    re.compile(r'\[' + re.escape(col) + r'\]', re.IGNORECASE),
+                ]
+                for pattern in patterns:
+                    rendered_xml = pattern.sub(val, rendered_xml)
+
+            clean_id, clean_name = get_document_clean_names(row, idx, list(df.columns))
+            filename = f"DOC_{idx+1:04d}_{clean_id}{clean_name}.xml"
+
+            zf.writestr(filename, rendered_xml.encode('utf-8'))
+            total_generated += 1
+
+    zip_buffer.seek(0)
+    return zip_buffer, total_generated
+
+def generate_batch_pdf_zip(template_bytes: bytes, df: pd.DataFrame) -> tuple[io.BytesIO, int]:
+    reg_path = ROBOTO_FONTS['regular']
+    zip_buffer = io.BytesIO()
+    total_generated = 0
+
+    normalized_template, _ = convert_pdf_all_to_roboto(template_bytes)
+
+    with zipfile.ZipFile(zip_buffer, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
+        for idx, row in df.iterrows():
+            doc = pymupdf.open(stream=normalized_template, filetype="pdf")
+
+            for page in doc:
+                replacements_to_draw = []
+
+                for col in df.columns:
+                    val = str(row[col]) if row[col] is not None else ""
+                    placeholder_variants = [
+                        f"{{{{{col}}}}}",
+                        f"{{{{ {col} }}}}",
+                        f"{{{col}}}",
+                        f"[{col}]"
+                    ]
+
+                    for p_var in placeholder_variants:
+                        rects = page.search_for(p_var)
+                        for r in rects:
+                            page.add_redact_annot(r, fill=None)
+                            replacements_to_draw.append((r, val))
+
+                page.apply_redactions(images=0, graphics=0, text=0)
+
+                for r, val in replacements_to_draw:
+                    point = pymupdf.Point(r.x0, r.y1 - 2)
+                    if os.path.exists(reg_path):
+                        page.insert_text(point, val, fontname="Roboto-Regular", fontfile=reg_path, fontsize=10, color=(0.0, 0.17, 0.42))
+                    else:
+                        page.insert_text(point, val, fontname="helv", fontsize=10, color=(0.0, 0.17, 0.42))
+
+            clean_id, clean_name = get_document_clean_names(row, idx, list(df.columns))
+            filename = f"DOC_{idx+1:04d}_{clean_id}{clean_name}.pdf"
+
+            zf.writestr(filename, doc.tobytes(deflate=True))
+            doc.close()
+            total_generated += 1
+
+    zip_buffer.seek(0)
+    return zip_buffer, total_generated
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    return templates.TemplateResponse(request=request, name="index.html")
+
+@app.post("/api/convert-font")
+async def convert_font_endpoint(file: UploadFile = File(...)):
+    filename = file.filename or "document"
+    ext = filename.lower().split('.')[-1]
+
+    if ext not in ['xml', 'docx', 'pdf']:
+        raise HTTPException(
+            status_code=400,
+            detail="Tipe file tidak didukung. Silakan upload file dengan format .xml, .docx, atau .pdf."
+        )
+
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="File kosong.")
+
+    if ext == 'xml':
+        converted_bytes, replacements = convert_xml_arial_to_roboto(file_bytes)
+        media_type = "application/xml"
+    elif ext == 'docx':
+        converted_bytes, replacements = convert_docx_arial_to_roboto(file_bytes)
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    else:
+        converted_bytes, replacements = convert_pdf_all_to_roboto(file_bytes)
+        media_type = "application/pdf"
+
+    out_name = f"Roboto_{filename}"
+
+    return StreamingResponse(
+        io.BytesIO(converted_bytes),
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{out_name}"',
+            "X-Replacements-Count": str(replacements),
+            "Access-Control-Expose-Headers": "Content-Disposition, X-Replacements-Count"
+        }
+    )
+
+@app.post("/api/batch-merge")
+async def batch_merge_endpoint(
+    template_file: UploadFile = File(...),
+    data_file: UploadFile = File(...)
+):
+    t_filename = template_file.filename or ""
+    t_ext = t_filename.lower().split('.')[-1]
+    if t_ext not in ['xml', 'pdf']:
+        raise HTTPException(status_code=400, detail="Master Template harus berupa file XML (.xml) atau PDF (.pdf).")
+
+    d_filename = data_file.filename or ""
+    d_ext = d_filename.lower().split('.')[-1]
+    if d_ext not in ['csv', 'xlsx', 'xls']:
+        raise HTTPException(status_code=400, detail="Data harus berupa file CSV atau Excel (.xlsx/.xls).")
+
+    template_bytes = await template_file.read()
+    data_bytes = await data_file.read()
+
+    if not template_bytes or not data_bytes:
+        raise HTTPException(status_code=400, detail="Template atau file data tidak boleh kosong.")
+
+    df = load_dataset(data_bytes, d_filename)
+    if df.empty:
+        raise HTTPException(status_code=400, detail="File data tidak memiliki baris data.")
+
+    if t_ext == 'xml':
+        zip_buffer, count = generate_batch_xml_zip(template_bytes, df)
+        out_zip_name = f"Batch_Result_{count}_Docs.zip"
+    else:
+        zip_buffer, count = generate_batch_pdf_zip(template_bytes, df)
+        out_zip_name = f"Batch_Result_{count}_Docs.zip"
+
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{out_zip_name}"',
+            "X-Generated-Count": str(count),
+            "Access-Control-Expose-Headers": "Content-Disposition, X-Generated-Count"
+        }
+    )
+
+@app.post("/api/preview-data")
+async def preview_data_endpoint(data_file: UploadFile = File(...)):
+    filename = data_file.filename or ""
+    file_bytes = await data_file.read()
+    df = load_dataset(file_bytes, filename)
+
+    return {
+        "columns": list(df.columns),
+        "rows": df.head(5).to_dict(orient="records"),
+        "total_rows": len(df)
+    }
+
+@app.get("/api/download-sample/{sample_type}")
+async def download_sample(sample_type: str):
+    if sample_type == "xml":
+        path = os.path.join(DUMMY_DIR, "template.xml")
+        return FileResponse(path, filename="template_sample.xml", media_type="application/xml")
+    elif sample_type == "docx":
+        path = os.path.join(DUMMY_DIR, "template.docx")
+        return FileResponse(path, filename="template_sample.docx", media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    elif sample_type == "pdf":
+        path = os.path.join(DUMMY_DIR, "template.pdf")
+        return FileResponse(path, filename="template_sample.pdf", media_type="application/pdf")
+    elif sample_type == "csv":
+        path = os.path.join(DUMMY_DIR, "data_sample.csv")
+        if not os.path.exists(path):
+            path = os.path.join(DUMMY_DIR, "data_nasabah.csv")
+        return FileResponse(path, filename="data_sample.csv", media_type="text/csv")
+    else:
+        raise HTTPException(status_code=404, detail="Tipe sample tidak ditemukan.")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

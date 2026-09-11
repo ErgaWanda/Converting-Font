@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document version="2.0" xmlns="http://schemas.astralife.co.id/docgen/2026">
+    <metadata>
+        <title>Ringkasan Polis Asuransi Astra Life</title>
+        <author>PT Asuransi Jiwa Astra</author>
+        <default-font family="Arial" size="11pt" color="#333333" />
+    </metadata>
+    <header>
+        <logo src="assets/astra_life_logo.png" />
+        <company-info>
+            <text font-family="Arial" font-size="14pt" font-weight="bold" color="#002C6C">PT ASURANSI JIWA ASTRA</text>
+            <text font-family="Arial" font-size="9pt" color="#666666">Pondok Indah Office Tower 3, Lantai 1, Jl. Sultan Iskandar Muda Kav. V-TA, Jakarta 12310</text>
+            <text font-family="Arial" font-size="9pt" color="#666666">Call Center: 1-500-282 | www.astralife.co.id</text>
+        </company-info>
+    </header>
+    <body>
+        <section id="policy-summary">
+            <heading level="1" font-family="Arial" font-size="16pt" font-weight="bold" color="#002C6C">IKHTISAR POLIS ASURANSI JIWA</heading>
+            <paragraph font-family="Arial" font-size="10pt" line-height="1.5">
+                Surat ini mengonfirmasi bahwa Polis Asuransi di bawah ini telah disetujui dan diterbitkan sesuai dengan ketentuan polis yang berlaku.
+            </paragraph>
+
+            <table border="1" border-color="#DDDDDD" cellpadding="6" font-family="Arial" font-size="10pt">
+                <row>
+                    <cell width="35%" font-weight="bold">Nomor Polis</cell>
+                    <cell width="65%">{{NO_POLIS}}</cell>
+                </row>
+                <row>
+                    <cell font-weight="bold">Nama Pemegang Polis / Tertanggung</cell>
+                    <cell>{{NAMA}}</cell>
+                </row>
+                <row>
+                    <cell font-weight="bold">Nama Produk Asuransi</cell>
+                    <cell>{{PRODUK}}</cell>
+                </row>
+                <row>
+                    <cell font-weight="bold">Besar Premi (Berkala)</cell>
+                    <cell>{{PREMI}}</cell>
+                </row>
+                <row>
+                    <cell font-weight="bold">Uang Pertanggungan (UP)</cell>
+                    <cell>{{UANG_PERTANGGUNGAN}}</cell>
+                </row>
+                <row>
+                    <cell font-weight="bold">Tanggal Mulai Berlaku</cell>
+                    <cell>{{TANGGAL_MULAI}}</cell>
+                </row>
+                <row>
+                    <cell font-weight="bold">Status Polis</cell>
+                    <cell>{{STATUS}}</cell>
+                </row>
+            </table>
+        </section>
+
+        <section id="terms" font-family="Arial" font-size="9pt" color="#555555" margin-top="15pt">
+            <heading level="2" font-family="Arial" font-size="11pt" font-weight="bold" color="#002C6C">KETENTUAN PENTING</heading>
+            <bullet-list>
+                <item font-family="Arial">Pembayaran premi wajib dilakukan sebelum tanggal jatuh tempo polis.</item>
+                <item font-family="Arial">Pastikan seluruh data pribadi dan informasi ahli waris selalu diperbarui melalui layanan nasabah Astra Life.</item>
+                <item font-family="Arial">Dokumen ini merupakan ringkasan resmi yang diterbitkan secara otomatis oleh sistem Astra Life.</item>
+            </bullet-list>
+        </section>
+    </body>
+    <footer>
+        <text font-family="Arial" font-size="8pt" color="#888888" align="center">
+            PT Asuransi Jiwa Astra berizin dan diawasi oleh Otoritas Jasa Keuangan (OJK).
+        </text>
+    </footer>
+</document>
