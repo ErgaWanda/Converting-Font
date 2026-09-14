@@ -229,6 +229,28 @@ def _remove_text_from_content_stream(stream_text: str) -> str:
     return ''.join(out)
 
 
+def _clear_font_dict(obj_str: str) -> str:
+    m = re.search(r'/Font\s*<<', obj_str)
+    if not m:
+        return obj_str
+    dict_start = m.end() - 2
+    i = dict_start + 2
+    depth = 1
+    n = len(obj_str)
+    while i < n and depth > 0:
+        if obj_str[i:i+2] == '<<':
+            depth += 1
+            i += 2
+        elif obj_str[i:i+2] == '>>':
+            depth -= 1
+            i += 2
+        else:
+            i += 1
+    if depth == 0:
+        return obj_str[:dict_start] + '<<>>' + obj_str[i:]
+    return obj_str
+
+
 ROUND_BULLETS = {'\uf0b7', '\uf06c', '\uf06d', '\u25cf', '\u25cb', '\u25ef'}
 SQUARE_BULLETS = {
     '\uf0a7', '\uf06e', '\uf071', '\uf0de', '\uf0d8', '\uf0a8',
@@ -568,13 +590,30 @@ def convert_pdf_all_to_roboto(pdf_bytes: bytes) -> tuple[bytes, int]:
         try:
             obj_str = doc.xref_object(xref, compressed=False)
             if '/Subtype /Form' in obj_str or '/Subtype/Form' in obj_str:
-                raw_data = doc.xref_stream(xref).decode('latin-1', errors='replace')
-                clean_data = _remove_text_from_content_stream(raw_data)
-                doc.update_stream(xref, clean_data.encode('latin-1'))
+                raw_bytes = doc.xref_stream(xref)
+                if b'BT' in raw_bytes:
+                    raw_data = raw_bytes.decode('latin-1', errors='replace')
+                    clean_data = _remove_text_from_content_stream(raw_data)
+                    doc.update_stream(xref, clean_data.encode('latin-1'))
+                    m = re.search(r'/Resources\s+(\d+)\s+0\s+R', obj_str)
+                    if m:
+                        res_xref = int(m.group(1))
+                        res_obj = doc.xref_object(res_xref, compressed=False)
+                        new_res = _clear_font_dict(res_obj)
+                        if new_res != res_obj:
+                            doc.update_object(res_xref, new_res)
+                    elif '/Font' in obj_str:
+                        new_obj = _clear_font_dict(obj_str)
+                        if new_obj != obj_str:
+                            doc.update_object(xref, new_obj)
         except Exception:
             pass
 
     for page_idx, page in enumerate(doc):
+        try:
+            page.clean_contents(sanitize=False)
+        except Exception:
+            pass
         contents = page.get_contents()
         for cx in contents:
             try:
@@ -583,6 +622,22 @@ def convert_pdf_all_to_roboto(pdf_bytes: bytes) -> tuple[bytes, int]:
                 doc.update_stream(cx, clean_data.encode('latin-1'))
             except Exception:
                 pass
+
+        try:
+            p_obj = doc.xref_object(page.xref, compressed=False)
+            m = re.search(r'/Resources\s+(\d+)\s+0\s+R', p_obj)
+            if m:
+                res_xref = int(m.group(1))
+                res_obj = doc.xref_object(res_xref, compressed=False)
+                new_res = _clear_font_dict(res_obj)
+                if new_res != res_obj:
+                    doc.update_object(res_xref, new_res)
+            elif '/Font' in p_obj:
+                new_p_obj = _clear_font_dict(p_obj)
+                if new_p_obj != p_obj:
+                    doc.update_object(page.xref, new_p_obj)
+        except Exception:
+            pass
 
         for item in all_pages_elements[page_idx]:
             try:
@@ -599,41 +654,30 @@ def convert_pdf_all_to_roboto(pdf_bytes: bytes) -> tuple[bytes, int]:
             except Exception:
                 continue
 
-    for xref in range(1, doc.xref_length()):
+    for page in doc:
         try:
-            obj_str = doc.xref_object(xref, compressed=False)
-            if not any(k in obj_str for k in ['/Type /Font', '/Type /FontDescriptor', '/FontName', '/BaseFont']):
-                continue
-
-            def repl(m):
-                key = m.group(1)
-                val = m.group(2)
-                lower = val.lower()
-                if 'roboto' in lower and not any(other in lower for other in ['times', 'arial', 'helv', 'courier']):
-                    return key + val
-
-                is_bold = bool(re.search(r'(bold|[-_,]bd\b|[-_,]b\b)', lower))
-                is_italic = bool(re.search(r'(italic|oblique|[-_,]it\b|[-_,]i\b)', lower))
-
-                if is_bold and is_italic:
-                    target = 'Roboto-BoldItalic'
-                elif is_bold:
-                    target = 'Roboto-Bold'
-                elif is_italic:
-                    target = 'Roboto-Italic'
-                else:
-                    target = 'Roboto-Regular'
-
-                return f'{key}/{target}'
-
-            new_obj = re.sub(r'(/BaseFont\s+)(/[^\s/<>()\[\]{}%]+)', repl, obj_str)
-            new_obj = re.sub(r'(/FontName\s+)(/[^\s/<>()\[\]{}%]+)', repl, new_obj)
-            new_obj = re.sub(r'(/FontFamily\s*)(\([^)]+\)|/[^\s/<>()\[\]{}%]+)', r'\1(Roboto)', new_obj)
-
-            if new_obj != obj_str:
-                doc.update_object(xref, new_obj)
+            page.clean_contents(sanitize=False)
         except Exception:
-            continue
+            pass
+
+    for x in range(1, doc.xref_length()):
+        try:
+            s_bytes = doc.xref_stream(x)
+            if s_bytes and b'begincmap' in s_bytes:
+                s = s_bytes.decode('latin-1', errors='replace')
+                def fix_hex(m):
+                    val = m.group(1)
+                    if len(val) % 2 != 0:
+                        if len(val) == 5:
+                            cp = int(val, 16)
+                            return '<' + chr(cp).encode('utf-16be').hex() + '>'
+                        return '<0' + val + '>'
+                    return '<' + val + '>'
+                new_s = re.sub(r'<([0-9a-fA-F]+)>', fix_hex, s)
+                if new_s != s:
+                    doc.update_stream(x, new_s.encode('latin-1'))
+        except Exception:
+            pass
 
     out_pdf = doc.tobytes(garbage=4, deflate=True, clean=False)
     doc.close()
