@@ -47,15 +47,15 @@ def create_100_documents():
         up = f"Rp {(100_000_000 + (i * 25_000_000)):,}".replace(",", ".")
 
         doc = docx.Document()
-        
-        # Header
+
+
         header = doc.sections[0].header
         hp = header.paragraphs[0]
         hrun = hp.add_run(f"Astra Life Insurance - Policy Doc #{no_polis} [Strictly Confidential]")
         hrun.font.name = "Arial"
         hrun.font.size = Pt(8.5)
 
-        # Title
+
         p_title = doc.add_paragraph()
         r_title = p_title.add_run(f"IKHTISAR POLIS ASURANSI - DOKUMEN #{i:03d}")
         r_title.font.name = "Arial"
@@ -63,7 +63,7 @@ def create_100_documents():
         r_title.font.bold = True
         r_title.font.color.rgb = RGBColor(0, 44, 108)
 
-        # Intro
+
         p_intro = doc.add_paragraph()
         r_intro = p_intro.add_run(
             f"Kepada Yth. Bapak/Ibu {name},\n"
@@ -73,7 +73,7 @@ def create_100_documents():
         r_intro.font.name = "Arial"
         r_intro.font.size = Pt(11)
 
-        # Table
+
         table = doc.add_table(rows=1, cols=2)
         table.style = 'Table Grid'
         hdr_cells = table.rows[0].cells
@@ -103,7 +103,7 @@ def create_100_documents():
             r1 = row_cells[1].paragraphs[0].add_run(val)
             r1.font.name = "Arial"
 
-        # Footer note
+
         p_footer = doc.add_paragraph()
         r_footer = p_footer.add_run(
             "\nCatatan: Dokumen ini dibuat otomatis oleh Document Automation Engine Astra Life. "
@@ -168,7 +168,7 @@ def create_100_documents():
         with open(filename, "w", encoding="utf-8") as f:
             f.write(rendered_xml)
 
-    # Buat juga file ZIP agar mudah dicoba di web browser
+
     print(f"Mengompres folder '{OUTPUT_DIR}' menjadi '{ZIP_OUTPUT}'...")
     with zipfile.ZipFile(ZIP_OUTPUT, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
         for root, _, files in os.walk(OUTPUT_DIR):

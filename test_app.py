@@ -49,7 +49,7 @@ def test_backend_logic():
     doc_chk.close()
     print(f"PDF Font Conversion OK: {pdf_count} spans processed.")
 
-    # Test PDF with Times font
+
     doc_times = pymupdf.open()
     p_t = doc_times.new_page()
     p_t.insert_text((50, 50), "Times Roman Text", fontname="tiro", fontsize=12)
@@ -146,13 +146,44 @@ def test_backend_logic():
     p_just = doc_just.new_page()
     p_just.insert_text((50, 100), "Sertifikat Asuransi ini menjelaskan perlindungan", fontname="helv", fontsize=8.0)
     p_just.insert_text((50, 115), "singkat serta hak kewajiban sehubungan perjanjian", fontname="helv", fontsize=8.0)
+    p_just.insert_text((50, 130), "disembunyikan oleh Peserta (Tertanggung) dan", fontname="helv", fontsize=8.0)
     just_pdf_bytes = doc_just.tobytes()
     doc_just.close()
     converted_just_pdf, _ = convert_pdf_all_to_roboto(just_pdf_bytes)
     chk_just = pymupdf.open(stream=converted_just_pdf, filetype="pdf")
     assert len(chk_just) == 1
+    d_just = chk_just[0].get_text("rawdict")
+    for b in d_just["blocks"]:
+        for l in b.get("lines", []):
+            all_c = [c for s in l["spans"] for c in s["chars"]]
+            for i in range(len(all_c) - 1):
+                assert all_c[i+1]["bbox"][0] - all_c[i]["bbox"][2] <= 5.0
     chk_just.close()
     print("Justified Text Alignment OK: Word spacing preserved on justified paragraphs.")
+
+    doc_num = pymupdf.open()
+    p_num = doc_num.new_page()
+    p_num.insert_text((40, 100), "1.", fontname="helv", fontsize=8.0)
+    p_num.insert_text((51, 100), "Ketentuan umum mengenai polis dan sertifikat", fontname="helv", fontsize=8.0)
+    p_num.insert_text((54, 115), "sebagaimana diatur dalam ketentuan yang berlaku", fontname="helv", fontsize=8.0)
+    num_pdf_bytes = doc_num.tobytes()
+    doc_num.close()
+    converted_num_pdf, _ = convert_pdf_all_to_roboto(num_pdf_bytes)
+    chk_num = pymupdf.open(stream=converted_num_pdf, filetype="pdf")
+    d_num = chk_num[0].get_text("dict")
+    found_aligned = False
+    for b in d_num["blocks"]:
+        if b.get("type") == 0:
+            for l in b["lines"]:
+                txt = "".join(s["text"] for s in l["spans"]).strip()
+                if "Ketentuan" in txt:
+                    for s in l["spans"]:
+                        if "Ketentuan" in s["text"]:
+                            assert abs(s["origin"][0] - 54.0) < 1.0
+                            found_aligned = True
+    assert found_aligned
+    chk_num.close()
+    print("Numbered List Indentation Alignment OK: First line body aligns with continuation indent.")
 
     csv_path = "dummy/data_sample.csv" if os.path.exists("dummy/data_sample.csv") else "dummy/data_nasabah.csv"
     with open(csv_path, "rb") as f:
@@ -175,7 +206,7 @@ def test_backend_logic():
     print("PDF Batch ZIP OK.")
 
     client = TestClient(app)
-    
+
     res = client.get("/")
     assert res.status_code == 200
     assert "Converting Font" in res.text
@@ -187,7 +218,30 @@ def test_backend_logic():
     assert res.status_code == 200
     res = client.post("/api/convert-font", files={"file": ("test.pdf", pdf_bytes, "application/pdf")})
     assert res.status_code == 200
-    print("POST /api/convert-font OK")
+
+
+    zip_in = io.BytesIO()
+    with zipfile.ZipFile(zip_in, "w") as zf:
+        zf.writestr("sub/doc1.pdf", pdf_bytes)
+        zf.writestr("doc2.xml", xml_bytes)
+    res_zip = client.post("/api/convert-font", files={"file": ("archive.zip", zip_in.getvalue(), "application/zip")})
+    assert res_zip.status_code == 200
+    assert res_zip.headers["content-type"] == "application/zip"
+    assert int(res_zip.headers.get("x-converted-count", 0)) == 2
+    with zipfile.ZipFile(io.BytesIO(res_zip.content)) as out_zf:
+        assert "sub/Roboto_doc1.pdf" in out_zf.namelist()
+        assert "Roboto_doc2.xml" in out_zf.namelist()
+
+
+    multi_payload = [
+        ("files", ("f1.pdf", pdf_bytes, "application/pdf")),
+        ("files", ("f2.docx", docx_bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")),
+    ]
+    res_multi = client.post("/api/convert-font", files=multi_payload)
+    assert res_multi.status_code == 200
+    assert res_multi.headers["content-type"] == "application/zip"
+    assert int(res_multi.headers.get("x-converted-count", 0)) == 2
+    print("POST /api/convert-font (Single, ZIP, and Multi-file) OK")
 
     res = client.post("/api/preview-data", files={"data_file": ("data.csv", csv_bytes, "text/csv")})
     assert res.status_code == 200

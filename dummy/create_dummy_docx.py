@@ -3,7 +3,6 @@ from docx.shared import Pt, RGBColor, Inches
 
 doc = docx.Document()
 
-# Set standard margins
 sections = doc.sections
 for section in sections:
     section.top_margin = Inches(1)
@@ -11,14 +10,12 @@ for section in sections:
     section.left_margin = Inches(1)
     section.right_margin = Inches(1)
 
-# Header
 header = doc.sections[0].header
 hp = header.paragraphs[0]
 hrun = hp.add_run("Astra Life Document Template - Confidential")
 hrun.font.name = "Arial"
 hrun.font.size = Pt(8.5)
 
-# Title
 title_p = doc.add_paragraph()
 title_run = title_p.add_run("SURAT PENGANTAR POLIS ASURANSI JIWA ASTRA")
 title_run.font.name = "Arial"
@@ -26,13 +23,11 @@ title_run.font.size = Pt(16)
 title_run.font.bold = True
 title_run.font.color.rgb = RGBColor(0, 44, 108)
 
-# Paragraph
 p1 = doc.add_paragraph()
 r1 = p1.add_run("Kepada Yth. Pemegang Polis,\nTerima kasih telah mempercayakan perlindungan masa depan Anda dan keluarga kepada PT Asuransi Jiwa Astra (Astra Life). Bersama surat ini kami lampirkan dokumen ikhtisar pertanggungan asuransi jiwa Anda.")
 r1.font.name = "Arial"
 r1.font.size = Pt(11)
 
-# Table
 table = doc.add_table(rows=1, cols=2)
 table.style = 'Table Grid'
 hdr_cells = table.rows[0].cells
