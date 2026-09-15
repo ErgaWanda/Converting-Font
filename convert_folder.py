@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """
 Astra Life Document Automation Engine - Folder & Batch Font Converter CLI
 Mengonversi seluruh deklarasi font Arial ke Roboto pada semua file .xml dan .docx dalam 1 folder.
@@ -15,7 +15,7 @@ import argparse
 import time
 from pathlib import Path
 
-# Import core conversion functions from main.py
+
 from main import convert_xml_arial_to_roboto, convert_docx_arial_to_roboto
 
 
@@ -40,12 +40,12 @@ def process_folder(input_dir: str, output_dir: str = None, recursive: bool = Tru
     print(f"Pencarian     : {'Rekursif (termasuk sub-folder)' if recursive else 'Hanya folder utama'}")
     print("-" * 70)
 
-    # Kumpulkan semua file .xml dan .docx
+
     files_to_process = []
     pattern = "**/*" if recursive else "*"
     for item in input_path.glob(pattern):
         if item.is_file() and item.suffix.lower() in ['.xml', '.docx']:
-            # Hindari memproses file temporary word misal ~$template.docx
+
             if not item.name.startswith("~$"):
                 files_to_process.append(item)
 
@@ -63,7 +63,7 @@ def process_folder(input_dir: str, output_dir: str = None, recursive: bool = Tru
 
     for idx, file_path in enumerate(files_to_process, 1):
         rel_path = file_path.relative_to(input_path)
-        # Tambahkan prefix Roboto_ pada nama file hasil
+
         dest_filename = f"Roboto_{file_path.name}"
         dest_file_path = output_path / rel_path.parent / dest_filename
         dest_file_path.parent.mkdir(parents=True, exist_ok=True)
