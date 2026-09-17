@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tools Converting Font</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.ico">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -54,6 +55,33 @@
         .custom-scrollbar::-webkit-scrollbar-thumb {
             background: #CBD5E1;
             border-radius: 9999px;
+        }
+
+        @keyframes shimmer-move {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(250%); }
+        }
+
+        .shimmer-active {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .shimmer-active::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+            animation: shimmer-move 1.6s infinite ease-in-out;
+        }
+
+        @keyframes pulse-subtle {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.75; }
+        }
+
+        .pulse-subtle {
+            animation: pulse-subtle 1.8s infinite;
         }
     </style>
 </head>
@@ -180,6 +208,46 @@
                         <i data-lucide="arrow-right" class="w-3.5 h-3.5" id="convert-icon"></i>
                         <span id="convert-btn-text">Konversi Sekarang</span>
                     </button>
+                </div>
+
+                <div id="font-progress-card"
+                    class="hidden mt-4 bg-white border border-blue-100 rounded-2xl p-4 sm:p-5 shadow-[0_8px_24px_-4px_rgba(37,99,235,0.08)] space-y-3 transition-all duration-300">
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div id="font-progress-icon-box"
+                                class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 border border-blue-200/60 shadow-2xs">
+                                <i data-lucide="loader-2" id="font-progress-icon" class="w-4 h-4 animate-spin stroke-[2.2]"></i>
+                            </div>
+                            <div class="truncate">
+                                <h4 id="font-progress-title" class="font-bold text-slate-900 text-xs sm:text-sm leading-tight truncate">
+                                    Memproses Konversi Font...
+                                </h4>
+                                <p id="font-progress-desc" class="text-[11px] text-slate-500 mt-0.5 truncate">
+                                    Mengunggah berkas ke server...
+                                </p>
+                            </div>
+                        </div>
+                        <div class="text-right flex-shrink-0 pl-2">
+                            <span id="font-progress-pct"
+                                class="font-mono font-extrabold text-base sm:text-xl text-blue-600 tracking-tight">0%</span>
+                        </div>
+                    </div>
+
+                    <div class="relative w-full bg-slate-100/90 rounded-full h-2.5 sm:h-3 overflow-hidden border border-slate-200/50">
+                        <div id="font-progress-bar"
+                            class="h-full bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-500 rounded-full transition-all duration-200 ease-out shimmer-active shadow-xs"
+                            style="width: 0%;"></div>
+                    </div>
+
+                    <div class="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-0.5">
+                        <span id="font-progress-step" class="text-slate-600 font-medium truncate max-w-[70%]">
+                            Tahap 1 dari 4: Mengunggah berkas
+                        </span>
+                        <span id="font-progress-time" class="flex items-center gap-1 font-semibold text-slate-500 flex-shrink-0">
+                            <i data-lucide="clock" class="w-3 h-3"></i>
+                            <span id="font-timer-text">0.0 detik</span>
+                        </span>
+                    </div>
                 </div>
 
                 <div id="font-result-card"
@@ -377,13 +445,79 @@
             lucide.createIcons();
         }
 
+        let fontXhr = null;
+        let fontProgressTimer = null;
+        let fontElapsedTimer = null;
+        let fontStartTime = 0;
+        let currentFontProgress = 0;
+
+        const fontProgressCard = document.getElementById('font-progress-card');
+        const fontProgressBar = document.getElementById('font-progress-bar');
+        const fontProgressPct = document.getElementById('font-progress-pct');
+        const fontProgressTitle = document.getElementById('font-progress-title');
+        const fontProgressDesc = document.getElementById('font-progress-desc');
+        const fontProgressStep = document.getElementById('font-progress-step');
+        const fontTimerText = document.getElementById('font-timer-text');
+        const fontProgressIcon = document.getElementById('font-progress-icon');
+        const fontProgressIconBox = document.getElementById('font-progress-icon-box');
+
+        function setFontProgress(percent, title, desc, step) {
+            currentFontProgress = Math.min(100, Math.max(0, Math.round(percent)));
+            if (fontProgressBar) fontProgressBar.style.width = currentFontProgress + '%';
+            if (fontProgressPct) fontProgressPct.textContent = currentFontProgress + '%';
+            if (title && fontProgressTitle) fontProgressTitle.textContent = title;
+            if (desc && fontProgressDesc) fontProgressDesc.textContent = desc;
+            if (step && fontProgressStep) fontProgressStep.textContent = step;
+
+            const btnText = document.getElementById('convert-btn-text');
+            if (btnText && convertFontBtn && convertFontBtn.disabled) {
+                btnText.textContent = `Memproses (${currentFontProgress}%)...`;
+            }
+        }
+
+        function resetFontProgressUI() {
+            if (fontProgressTimer) { clearInterval(fontProgressTimer); fontProgressTimer = null; }
+            if (fontElapsedTimer) { clearInterval(fontElapsedTimer); fontElapsedTimer = null; }
+            if (fontXhr) {
+                try { fontXhr.abort(); } catch(_) {}
+                fontXhr = null;
+            }
+            currentFontProgress = 0;
+            if (fontProgressBar) {
+                fontProgressBar.style.width = '0%';
+                fontProgressBar.className = 'h-full bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-500 rounded-full transition-all duration-200 ease-out shimmer-active shadow-xs';
+            }
+            if (fontProgressPct) {
+                fontProgressPct.textContent = '0%';
+                fontProgressPct.className = 'font-mono font-extrabold text-base sm:text-xl text-blue-600 tracking-tight';
+            }
+            if (fontProgressIconBox) {
+                fontProgressIconBox.className = 'w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 border border-blue-200/60 shadow-2xs';
+            }
+            if (fontProgressIcon) {
+                fontProgressIcon.setAttribute('data-lucide', 'loader-2');
+                fontProgressIcon.classList.add('animate-spin');
+            }
+            if (fontTimerText) fontTimerText.textContent = '0.0 detik';
+            if (fontProgressCard) fontProgressCard.classList.add('hidden');
+            lucide.createIcons();
+        }
+
         function clearFontFile(e) {
             if (e) e.stopPropagation();
+            resetFontProgressUI();
             fontFiles = [];
             fontFileInput.value = '';
             fontUploadPlaceholder.classList.remove('hidden');
             fontFileInfo.classList.add('hidden');
             convertFontBtn.disabled = true;
+            const btnText = document.getElementById('convert-btn-text');
+            if (btnText) btnText.textContent = 'Konversi Sekarang';
+            const icon = document.getElementById('convert-icon');
+            if (icon) {
+                icon.setAttribute('data-lucide', 'arrow-right');
+                icon.classList.remove('animate-spin');
+            }
             fontResultCard.classList.add('hidden');
             hideFontError();
             lucide.createIcons();
@@ -399,66 +533,236 @@
             fontErrorCard.classList.add('hidden');
         }
 
-        async function executeFontConversion() {
+        function executeFontConversion() {
             if (!fontFiles || fontFiles.length === 0) return;
 
             hideFontError();
             fontResultCard.classList.add('hidden');
+            resetFontProgressUI();
 
             const btn = convertFontBtn;
             const btnText = document.getElementById('convert-btn-text');
             const icon = document.getElementById('convert-icon');
 
             btn.disabled = true;
-            btnText.textContent = fontFiles.length > 1 ? `Mengonversi ${fontFiles.length} Berkas...` : 'Memproses...';
-            icon.setAttribute('data-lucide', 'loader-2');
+            btnText.textContent = 'Memulai (0%)...';
+            if (icon) {
+                icon.setAttribute('data-lucide', 'loader-2');
+                icon.classList.add('animate-spin');
+            }
+
+            fontProgressCard.classList.remove('hidden');
+            setFontProgress(5, 'Menghubungkan ke Server...', 'Menyiapkan berkas untuk diunggah...', 'Tahap 1 dari 4: Inisialisasi');
             lucide.createIcons();
-            icon.classList.add('animate-spin');
+
+            fontStartTime = Date.now();
+            fontElapsedTimer = setInterval(() => {
+                const sec = ((Date.now() - fontStartTime) / 1000).toFixed(1);
+                if (fontTimerText) fontTimerText.textContent = `${sec} detik`;
+            }, 100);
 
             const formData = new FormData();
             fontFiles.forEach(f => formData.append('files', f));
 
-            try {
-                const response = await fetch('/api/convert-font', {
-                    method: 'POST',
-                    body: formData
-                });
+            fontXhr = new XMLHttpRequest();
+            fontXhr.open('POST', '/api/convert-font', true);
+            fontXhr.responseType = 'blob';
 
-                if (!response.ok) {
-                    const errData = await response.json();
-                    throw new Error(errData.detail || 'Gagal mengonversi font.');
+            fontXhr.upload.onprogress = function (e) {
+                if (e.lengthComputable && e.total > 0) {
+                    const uploadPct = Math.round(5 + (e.loaded / e.total) * 20);
+                    setFontProgress(
+                        uploadPct,
+                        'Mengunggah Berkas ke Server...',
+                        `Mengirim ${formatBytes(e.loaded)} dari ${formatBytes(e.total)}...`,
+                        'Tahap 1 dari 4: Unggah berkas'
+                    );
                 }
+            };
 
-                const convertedCount = response.headers.get('X-Converted-Count');
-                const disposition = response.headers.get('Content-Disposition');
-                let filename = fontFiles.length > 1 ? `Roboto_Converted_${fontFiles.length}_Files.zip` : `Roboto_${fontFiles[0].name}`;
-                if (disposition && disposition.includes('filename=')) {
-                    const match = disposition.match(/filename="?([^"]+)"?/);
-                    if (match && match[1]) filename = match[1];
-                }
+            fontXhr.upload.onload = function () {
+                let currentPct = Math.max(currentFontProgress, 25);
+                setFontProgress(
+                    currentPct,
+                    'Memindai Struktur Dokumen...',
+                    'Menganalisis tata letak teks, XML tag, & deklarasi font...',
+                    'Tahap 2 dari 4: Pemindaian Dokumen'
+                );
 
-                const blob = await response.blob();
-                if (convertedBlobUrl) URL.revokeObjectURL(convertedBlobUrl);
-                convertedBlobUrl = URL.createObjectURL(blob);
-                convertedFilename = filename;
+                if (fontProgressTimer) clearInterval(fontProgressTimer);
+                fontProgressTimer = setInterval(() => {
+                    if (currentPct < 94) {
+                        if (currentPct < 45) {
+                            currentPct += 2;
+                        } else if (currentPct < 70) {
+                            currentPct += 1.5;
+                        } else if (currentPct < 85) {
+                            currentPct += 0.8;
+                        } else {
+                            currentPct += 0.3;
+                        }
 
-                if (convertedCount) {
-                    fontResultStats.textContent = `Berhasil mengonversi ${convertedCount} dokumen ke font Roboto (.zip). Unduhan otomatis dimulai!`;
+                        let title = 'Memindai Struktur Dokumen...';
+                        let desc = 'Menganalisis teks & mendeteksi deklarasi font Arial...';
+                        let step = 'Tahap 2 dari 4: Pemindaian Dokumen';
+
+                        if (currentPct >= 45 && currentPct < 70) {
+                            title = 'Mengonversi Font ke Google Roboto...';
+                            desc = 'Menerapkan font resmi Roboto (Regular, Bold, Italic) dengan presisi...';
+                            step = 'Tahap 3 dari 4: Penggantian Font';
+                        } else if (currentPct >= 70 && currentPct < 88) {
+                            title = 'Memverifikasi Presisi Tata Letak...';
+                            desc = 'Menjaga margin, spasi kata, dan koordinat tidak bergeser 100%...';
+                            step = 'Tahap 4 dari 4: Rekonstruksi Dokumen';
+                        } else if (currentPct >= 88) {
+                            title = 'Menyusun Berkas Hasil...';
+                            desc = 'Mengemas dokumen dan menyusun arsip unduhan...';
+                            step = 'Tahap 4 dari 4: Finalisasi';
+                        }
+
+                        setFontProgress(currentPct, title, desc, step);
+                    }
+                }, 200);
+            };
+
+            fontXhr.onload = function () {
+                if (fontProgressTimer) { clearInterval(fontProgressTimer); fontProgressTimer = null; }
+                if (fontElapsedTimer) { clearInterval(fontElapsedTimer); fontElapsedTimer = null; }
+
+                if (fontXhr.status >= 200 && fontXhr.status < 300) {
+                    setFontProgress(
+                        100,
+                        'Konversi Berhasil 100%!',
+                        'Dokumen selesai diproses ke font Roboto. Mengunduh otomatis...',
+                        'Tahap 4 dari 4: Selesai'
+                    );
+
+                    if (fontProgressBar) {
+                        fontProgressBar.className = 'h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-300 ease-out shadow-xs';
+                    }
+                    if (fontProgressPct) {
+                        fontProgressPct.className = 'font-mono font-extrabold text-base sm:text-xl text-emerald-600 tracking-tight';
+                    }
+                    if (fontProgressIconBox) {
+                        fontProgressIconBox.className = 'w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 border border-emerald-200 shadow-2xs';
+                    }
+                    if (fontProgressIcon) {
+                        fontProgressIcon.setAttribute('data-lucide', 'check-circle-2');
+                        fontProgressIcon.classList.remove('animate-spin');
+                    }
+                    lucide.createIcons();
+
+                    const disposition = fontXhr.getResponseHeader('Content-Disposition') || '';
+                    const convertedCount = fontXhr.getResponseHeader('X-Converted-Count') || '';
+                    const replacementsCount = fontXhr.getResponseHeader('X-Replacements-Count') || '';
+
+                    let filename = fontFiles.length > 1 ? `Roboto_Converted_${fontFiles.length}_Files.zip` : `Roboto_${fontFiles[0].name}`;
+                    if (disposition.includes('filename=')) {
+                        const match = disposition.match(/filename="?([^"]+)"?/);
+                        if (match && match[1]) filename = match[1];
+                    }
+
+                    const blob = fontXhr.response;
+                    if (convertedBlobUrl) URL.revokeObjectURL(convertedBlobUrl);
+                    convertedBlobUrl = URL.createObjectURL(blob);
+                    convertedFilename = filename;
+
+                    if (convertedCount) {
+                        fontResultStats.textContent = `Berhasil mengonversi ${convertedCount} dokumen ke font Roboto (.zip). Unduhan otomatis dimulai!`;
+                    } else if (replacementsCount) {
+                        fontResultStats.textContent = `Berhasil mengganti ${replacementsCount} elemen font ke Roboto TTF resmi. Unduhan otomatis dimulai!`;
+                    } else {
+                        fontResultStats.textContent = `Berhasil mengonversi font dokumen ke Roboto. File siap diunduh!`;
+                    }
+
+                    fontResultCard.classList.remove('hidden');
+                    triggerDownload(convertedBlobUrl, convertedFilename);
+
+                    setTimeout(() => {
+                        btn.disabled = false;
+                        btnText.textContent = 'Konversi Sekarang';
+                        if (icon) {
+                            icon.setAttribute('data-lucide', 'arrow-right');
+                            icon.classList.remove('animate-spin');
+                        }
+                        lucide.createIcons();
+                    }, 1200);
+
                 } else {
-                    fontResultStats.textContent = `Berhasil mengonversi font ke Roboto. File siap diunduh!`;
+                    handleConversionFailure(fontXhr);
                 }
-                fontResultCard.classList.remove('hidden');
-                triggerDownload(convertedBlobUrl, convertedFilename);
+            };
 
-            } catch (err) {
-                showFontError(err.message);
-            } finally {
-                btn.disabled = false;
-                btnText.textContent = 'Konversi Sekarang';
-                icon.setAttribute('data-lucide', 'arrow-right');
-                icon.classList.remove('animate-spin');
-                lucide.createIcons();
+            fontXhr.onerror = function () {
+                if (fontProgressTimer) { clearInterval(fontProgressTimer); fontProgressTimer = null; }
+                if (fontElapsedTimer) { clearInterval(fontElapsedTimer); fontElapsedTimer = null; }
+                handleConversionError('Gagal terhubung ke server. Pastikan aplikasi berjalan normal.');
+            };
+
+            fontXhr.ontimeout = function () {
+                if (fontProgressTimer) { clearInterval(fontProgressTimer); fontProgressTimer = null; }
+                if (fontElapsedTimer) { clearInterval(fontElapsedTimer); fontElapsedTimer = null; }
+                handleConversionError('Waktu proses melebihi batas waktu (timeout). Silakan coba lagi.');
+            };
+
+            fontXhr.send(formData);
+        }
+
+        function handleConversionFailure(xhr) {
+            const blob = xhr.response;
+            if (blob instanceof Blob) {
+                const reader = new FileReader();
+                reader.onload = function () {
+                    let errMsg = 'Terjadi kesalahan saat mengonversi file.';
+                    try {
+                        const parsed = JSON.parse(reader.result);
+                        if (parsed.detail) errMsg = parsed.detail;
+                    } catch (_) {
+                        if (reader.result && reader.result.length < 300) {
+                            errMsg = reader.result;
+                        }
+                    }
+                    handleConversionError(errMsg);
+                };
+                reader.readAsText(blob);
+            } else {
+                handleConversionError('Terjadi kesalahan pada server saat memproses file.');
             }
+        }
+
+        function handleConversionError(msg) {
+            if (fontProgressBar) {
+                fontProgressBar.style.width = '100%';
+                fontProgressBar.className = 'h-full bg-rose-500 rounded-full transition-all duration-300 ease-out shadow-xs';
+            }
+            if (fontProgressPct) {
+                fontProgressPct.textContent = 'Gagal';
+                fontProgressPct.className = 'font-mono font-extrabold text-sm sm:text-base text-rose-600 tracking-tight';
+            }
+            if (fontProgressIconBox) {
+                fontProgressIconBox.className = 'w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center flex-shrink-0 border border-rose-200 shadow-2xs';
+            }
+            if (fontProgressIcon) {
+                fontProgressIcon.setAttribute('data-lucide', 'alert-circle');
+                fontProgressIcon.classList.remove('animate-spin');
+            }
+            if (fontProgressTitle) fontProgressTitle.textContent = 'Konversi Gagal';
+            if (fontProgressDesc) fontProgressDesc.textContent = msg;
+            if (fontProgressStep) fontProgressStep.textContent = 'Terjadi kesalahan pada pemrosesan';
+
+            showFontError(msg);
+
+            const btn = convertFontBtn;
+            const btnText = document.getElementById('convert-btn-text');
+            const icon = document.getElementById('convert-icon');
+
+            btn.disabled = false;
+            btnText.textContent = 'Coba Konversi Lagi';
+            if (icon) {
+                icon.setAttribute('data-lucide', 'rotate-ccw');
+                icon.classList.remove('animate-spin');
+            }
+            lucide.createIcons();
         }
 
         downloadFontBtn.addEventListener('click', () => {

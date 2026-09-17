@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 from typing import Optional
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
-from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
@@ -26,15 +26,14 @@ app = FastAPI(
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
-DUMMY_DIR = os.path.join(BASE_DIR, "dummy")
+SAMPLES_DIR = os.path.join(BASE_DIR, "assets", "samples")
 FONTS_DIR = os.path.join(BASE_DIR, "assets", "fonts")
 
 os.makedirs(TEMPLATES_DIR, exist_ok=True)
-os.makedirs(DUMMY_DIR, exist_ok=True)
+os.makedirs(SAMPLES_DIR, exist_ok=True)
 os.makedirs(FONTS_DIR, exist_ok=True)
 
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
-
 
 ROBOTO_FONTS = {
     'regular': os.path.join(FONTS_DIR, 'Roboto-Regular.ttf'),
@@ -44,7 +43,6 @@ ROBOTO_FONTS = {
 }
 
 def ensure_roboto_fonts():
-    """Memastikan font resmi Google Roboto TTF tersedia di lokal."""
     urls = {
         'Roboto-Regular.ttf': 'https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-Regular.ttf',
         'Roboto-Bold.ttf': 'https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-Bold.ttf',
@@ -67,10 +65,6 @@ ensure_roboto_fonts()
 
 
 def convert_xml_arial_to_roboto(xml_bytes: bytes) -> tuple[bytes, int]:
-    """
-    Memindai dan mengubah semua deklarasi font 'Arial' menjadi 'Roboto'
-    pada file XML menggunakan xml.etree.ElementTree serta text scanning.
-    """
     count = 0
     try:
         xml_str = xml_bytes.decode('utf-8')
@@ -117,10 +111,6 @@ def convert_xml_arial_to_roboto(xml_bytes: bytes) -> tuple[bytes, int]:
 
 
 def convert_docx_arial_to_roboto(docx_bytes: bytes) -> tuple[bytes, int]:
-    """
-    Memindai dan mengubah seluruh deklarasi font 'Arial' menjadi 'Roboto'
-    pada file DOCX menggunakan python-docx.
-    """
     doc = docx.Document(io.BytesIO(docx_bytes))
     count = 0
 
@@ -286,6 +276,9 @@ def _remove_text_from_content_stream(stream_text: str) -> str:
                 state_ops = re.findall(r'(/[\w\#]+)\s+(cs|CS|gs)\b', non_str_content)
                 if state_ops:
                     out.append(' ' + ' '.join(f'{name} {op}' for name, op in state_ops) + ' ')
+                color_ops = re.findall(r'((?:[0-9\.\+\-]+\s+){1,4}(?:k|K|rg|RG|g|G))\b', non_str_content)
+                if color_ops:
+                    out.append(' ' + ' '.join(color_ops) + ' ')
                 i += 2
                 continue
             else:
@@ -362,16 +355,39 @@ def convert_pdf_all_to_roboto(pdf_bytes: bytes) -> tuple[bytes, int]:
                             superseded_ids.add(id(s1))
                             break
 
+        page_pix = page.get_pixmap(dpi=72)
+        pix_w, pix_h = page_pix.width, page_pix.height
+        pix_samples = page_pix.samples
+        for s in raw_spans:
+            if id(s) in superseded_ids:
+                continue
+            bx0 = max(0, min(pix_w - 1, int(s["bbox"][0])))
+            by0 = max(0, min(pix_h - 1, int(s["bbox"][1])))
+            bx1 = max(0, min(pix_w - 1, int(s["bbox"][2])))
+            by1 = max(0, min(pix_h - 1, int(s["bbox"][3])))
+            if bx1 > bx0 and by1 > by0:
+                s_cols = set()
+                for py in range(by0, by1 + 1):
+                    for px in range(bx0, bx1 + 1):
+                        p_idx = (py * pix_w + px) * 3
+                        s_cols.add((pix_samples[p_idx], pix_samples[p_idx+1], pix_samples[p_idx+2]))
+                        if len(s_cols) > 2:
+                            break
+                    if len(s_cols) > 2:
+                        break
+                if len(s_cols) <= 2:
+                    superseded_ids.add(id(s))
+
         x1_counts = {}
         for b in d.get("blocks", []):
             if b.get("type") != 0:
                 continue
             for l in b.get("lines", []):
                 txt = " ".join(s.get("text", "") for s in l.get("spans", []) if id(s) not in superseded_ids).strip()
-                if len(txt.split()) >= 3:
+                if len(txt.split()) >= 3 and not txt.endswith(":"):
                     x1_val = round(l["bbox"][2], 0)
                     x1_counts[x1_val] = x1_counts.get(x1_val, 0) + 1
-        common_margins = [k for k, v in x1_counts.items() if v >= 2]
+        common_margins = [k for k, v in x1_counts.items() if v >= 4]
 
         all_page_groups = []
         for b in d.get("blocks", []):
@@ -429,16 +445,18 @@ def convert_pdf_all_to_roboto(pdf_bytes: bytes) -> tuple[bytes, int]:
                 merged = False
                 for g in grouped_lines:
                     if abs(g["baseline_y"] - base_y) <= 1.2:
-                        g["lines"].append(l)
-                        g["spans"].extend(spans)
-                        g["bbox"] = (
-                            min(g["bbox"][0], l["bbox"][0]),
-                            min(g["bbox"][1], l["bbox"][1]),
-                            max(g["bbox"][2], l["bbox"][2]),
-                            max(g["bbox"][3], l["bbox"][3])
-                        )
-                        merged = True
-                        break
+                        h_gap = max(0, max(g["bbox"][0], l["bbox"][0]) - min(g["bbox"][2], l["bbox"][2]))
+                        if h_gap <= 15.0:
+                            g["lines"].append(l)
+                            g["spans"].extend(spans)
+                            g["bbox"] = (
+                                min(g["bbox"][0], l["bbox"][0]),
+                                min(g["bbox"][1], l["bbox"][1]),
+                                max(g["bbox"][2], l["bbox"][2]),
+                                max(g["bbox"][3], l["bbox"][3])
+                            )
+                            merged = True
+                            break
                 if not merged:
                     grouped_lines.append({
                         "baseline_y": base_y,
@@ -511,7 +529,8 @@ def convert_pdf_all_to_roboto(pdf_bytes: bytes) -> tuple[bytes, int]:
                         continue
                     sz = s.get("size", 10.0)
                     c = s.get("color", 0)
-                    color = (((c >> 16) & 255) / 255.0, ((c >> 8) & 255) / 255.0, (c & 255) / 255.0)
+                    cr, cg, cb = (((c >> 16) & 255) / 255.0, ((c >> 8) & 255) / 255.0, (c & 255) / 255.0)
+                    color = (0.0, 0.0, 0.0) if (cr < 0.22 and cg < 0.22 and cb < 0.22) else (cr, cg, cb)
                     flags = s.get("flags", 0)
                     font_str = s.get("font", "").lower()
                     is_bold = bool(flags & 16) or any(w in font_str for w in ['bold', 'medium', 'semibold', 'semi-bold', 'demi', 'black', 'heavy'])
@@ -555,8 +574,16 @@ def convert_pdf_all_to_roboto(pdf_bytes: bytes) -> tuple[bytes, int]:
                         total_words_w = sum(wd['w'] for wd in words_data)
                         default_sp = words_data[0]['f_obj'].text_length(' ', fontsize=words_data[0]['sz']) if words_data else 2.0
 
+                full_line_txt = " ".join(wd['word'] for wd in words_data).strip()
+                is_label = full_line_txt.endswith(":") or full_line_txt.endswith("?")
+                is_centered_block = False
+                if len(grouped_lines) >= 2:
+                    centers = [(g_line["bbox"][0] + g_line["bbox"][2]) / 2.0 for g_line in grouped_lines]
+                    widths = [g_line["bbox"][2] - g_line["bbox"][0] for g_line in grouped_lines]
+                    if (max(centers) - min(centers) <= 2.5) and (max(widths) - min(widths) >= 4.0):
+                        is_centered_block = True
                 can_justify = False
-                if is_right_aligned and not has_square and total_words >= 2 and target_w > total_words_w:
+                if is_right_aligned and not has_square and not is_label and not is_centered_block and total_words >= 4 and target_w > total_words_w:
                     gaps = total_words - 1
                     gap_w = (target_w - total_words_w) / gaps
                     if default_sp * 0.5 <= gap_w <= default_sp * 12.0:
@@ -567,7 +594,8 @@ def convert_pdf_all_to_roboto(pdf_bytes: bytes) -> tuple[bytes, int]:
                     p_orig = fitz.Point(p_span["origin"])
                     p_sz = p_span.get("size", 10.0)
                     p_c = p_span.get("color", 0)
-                    p_col = (((p_c >> 16) & 255) / 255.0, ((p_c >> 8) & 255) / 255.0, (p_c & 255) / 255.0)
+                    p_cr, p_cg, p_cb = (((p_c >> 16) & 255) / 255.0, ((p_c >> 8) & 255) / 255.0, (p_c & 255) / 255.0)
+                    p_col = (0.0, 0.0, 0.0) if (p_cr < 0.22 and p_cg < 0.22 and p_cb < 0.22) else (p_cr, p_cg, p_cb)
                     p_flags = p_span.get("flags", 0)
                     p_fstr = p_span.get("font", "").lower()
                     if _is_square_bullet(p_txt, p_fstr):
@@ -653,6 +681,7 @@ def convert_pdf_all_to_roboto(pdf_bytes: bytes) -> tuple[bytes, int]:
 
                 body_shift_x = (body_x0 - orig_body_x0) if prefix_span else 0.0
                 prev_end_x = 0
+                prev_orig_x1 = 0
                 for s in draw_spans:
                     text = s.get("text", "")
                     if not text:
@@ -660,7 +689,8 @@ def convert_pdf_all_to_roboto(pdf_bytes: bytes) -> tuple[bytes, int]:
                     origin = fitz.Point(s["origin"][0] + body_shift_x, s["origin"][1])
                     size = s["size"] * line_scale
                     c = s.get("color", 0)
-                    color = (((c >> 16) & 255) / 255.0, ((c >> 8) & 255) / 255.0, (c & 255) / 255.0)
+                    cr, cg, cb = (((c >> 16) & 255) / 255.0, ((c >> 8) & 255) / 255.0, (c & 255) / 255.0)
+                    color = (0.0, 0.0, 0.0) if (cr < 0.22 and cg < 0.22 and cb < 0.22) else (cr, cg, cb)
                     flags = s.get("flags", 0)
                     font_str = s.get("font", "").lower()
                     is_bold = bool(flags & 16) or any(w in font_str for w in ['bold', 'medium', 'semibold', 'semi-bold', 'demi', 'black', 'heavy'])
@@ -688,6 +718,7 @@ def convert_pdf_all_to_roboto(pdf_bytes: bytes) -> tuple[bytes, int]:
                         r = fitz.Rect(origin.x, origin.y - size * 0.48, origin.x + bw, origin.y - size * 0.48 + bh)
                         elements_to_draw.append(('rect', r, color))
                         prev_end_x = origin.x + bw
+                        prev_orig_x1 = s["bbox"][2]
                         continue
 
                     if clean_t and any(_is_square_bullet(ch, font_str) for ch in text):
@@ -711,19 +742,24 @@ def convert_pdf_all_to_roboto(pdf_bytes: bytes) -> tuple[bytes, int]:
                             elements_to_draw.append(('text', fitz.Point(curr_x, curr_y), buf, fn, ff, size, color))
                             curr_x += f_obj.text_length(buf, fontsize=size) if f_obj else size * 0.5 * len(buf)
                         prev_end_x = curr_x
+                        prev_orig_x1 = s["bbox"][2]
                         continue
 
                     sp_char_w = f_obj.text_length(' ', fontsize=size) if f_obj else size * 0.25
-                    if prev_end_x > 0 and origin.x > prev_end_x + sp_char_w * 1.2:
-                        span_gap = origin.x - prev_end_x
-                        sp_x = prev_end_x + (span_gap - sp_char_w) / 2.0
-                        elements_to_draw.append(('text', fitz.Point(sp_x, origin.y), ' ', fn, ff, size, color))
-
-                    if prev_end_x > 0 and origin.x < prev_end_x:
-                        origin = fitz.Point(prev_end_x, origin.y)
+                    orig_gap = (s["bbox"][0] - prev_orig_x1) if prev_orig_x1 > 0 else 999.0
+                    if prev_end_x > 0:
+                        if orig_gap <= 0.5:
+                            origin = fitz.Point(prev_end_x, origin.y)
+                        elif origin.x < prev_end_x:
+                            origin = fitz.Point(prev_end_x, origin.y)
+                        elif origin.x > prev_end_x + sp_char_w * 1.2:
+                            span_gap = origin.x - prev_end_x
+                            sp_x = prev_end_x + (span_gap - sp_char_w) / 2.0
+                            elements_to_draw.append(('text', fitz.Point(sp_x, origin.y), ' ', fn, ff, size, color))
 
                     span_w = f_obj.text_length(text, fontsize=size) if f_obj else size * 0.5 * len(text)
                     prev_end_x = origin.x + span_w
+                    prev_orig_x1 = s["bbox"][2]
                     elements_to_draw.append(('text', origin, text, fn, ff, size, color))
 
         all_pages_elements.append(elements_to_draw)
@@ -805,6 +841,11 @@ def convert_pdf_all_to_roboto(pdf_bytes: bytes) -> tuple[bytes, int]:
         except Exception:
             pass
 
+    try:
+        doc.subset_fonts()
+    except Exception:
+        pass
+
     for x in range(1, doc.xref_length()):
         try:
             s_bytes = doc.xref_stream(x)
@@ -830,7 +871,6 @@ def convert_pdf_all_to_roboto(pdf_bytes: bytes) -> tuple[bytes, int]:
 
 
 def load_dataset(file_bytes: bytes, filename: str) -> pd.DataFrame:
-    """Membaca data nasabah dari file CSV atau Excel ke DataFrame pandas."""
     ext = filename.lower().split('.')[-1]
     if ext == 'csv':
         try:
@@ -847,7 +887,6 @@ def load_dataset(file_bytes: bytes, filename: str) -> pd.DataFrame:
 
 
 def get_document_clean_names(row: pd.Series, idx: int, columns: list[str]) -> tuple[str, str]:
-    """Mendapatkan ID dan Nama bersih untuk penamaan file dokumen individual."""
     id_val = None
     for key in ['NO_POLIS', 'NOMOR_POLIS', 'POLIS', 'ID', 'NO']:
         for c in columns:
@@ -872,7 +911,6 @@ def get_document_clean_names(row: pd.Series, idx: int, columns: list[str]) -> tu
 
 
 def generate_batch_xml_zip(template_bytes: bytes, df: pd.DataFrame) -> tuple[io.BytesIO, int]:
-    """Batch mapping untuk template XML: placeholder diganti data nasabah, dibundel ke ZIP."""
     try:
         template_str = template_bytes.decode('utf-8')
     except UnicodeDecodeError:
@@ -906,11 +944,6 @@ def generate_batch_xml_zip(template_bytes: bytes, df: pd.DataFrame) -> tuple[io.
 
 
 def generate_batch_pdf_zip(template_bytes: bytes, df: pd.DataFrame) -> tuple[io.BytesIO, int]:
-    """
-    Batch mapping untuk template PDF:
-    Mencari placeholder, menghapus teks placeholder lama, dan menuliskan nilai nasabah
-    menggunakan font resmi Roboto-Regular TTF.
-    """
     reg_path = ROBOTO_FONTS['regular']
     zip_buffer = io.BytesIO()
     total_generated = 0
@@ -952,7 +985,12 @@ def generate_batch_pdf_zip(template_bytes: bytes, df: pd.DataFrame) -> tuple[io.
             clean_id, clean_name = get_document_clean_names(row, idx, list(df.columns))
             filename = f"DOC_{idx+1:04d}_{clean_id}{clean_name}.pdf"
 
-            zf.writestr(filename, doc.tobytes(deflate=True))
+            try:
+                doc.subset_fonts()
+            except Exception:
+                pass
+
+            zf.writestr(filename, doc.tobytes(garbage=4, deflate=True))
             doc.close()
             total_generated += 1
 
@@ -962,8 +1000,19 @@ def generate_batch_pdf_zip(template_bytes: bytes, df: pd.DataFrame) -> tuple[io.
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    """Menampilkan Dashboard Utama Otomatisasi Dokumen Astra Life"""
     return templates.TemplateResponse(request=request, name="index.html")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    svg_icon = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+        '<rect width="100" height="100" rx="24" fill="#2563EB"/>'
+        '<text x="50" y="65" font-family="system-ui, sans-serif" font-weight="bold" '
+        'font-size="52" fill="#FFFFFF" text-anchor="middle">F</text>'
+        '</svg>'
+    )
+    return Response(content=svg_icon, media_type="image/svg+xml")
 
 
 def process_single_file_content(file_bytes: bytes, filename: str) -> tuple[bytes, str, int]:
@@ -1101,11 +1150,6 @@ async def batch_merge_endpoint(
     template_file: UploadFile = File(...),
     data_file: UploadFile = File(...)
 ):
-    """
-    Endpoint Batch Tag Mapping & Merger:
-    Mendukung Master Template XML (.xml) atau PDF (.pdf),
-    menghasilkan seluruh file dengan font Roboto dalam ZIP.
-    """
     t_filename = template_file.filename or ""
     t_ext = t_filename.lower().split('.')[-1]
     if t_ext not in ['xml', 'pdf']:
@@ -1146,7 +1190,6 @@ async def batch_merge_endpoint(
 
 @app.post("/api/preview-data")
 async def preview_data_endpoint(data_file: UploadFile = File(...)):
-    """Endpoint untuk preview 5 baris pertama data nasabah yang diupload (CSV/Excel)."""
     filename = data_file.filename or ""
     file_bytes = await data_file.read()
     df = load_dataset(file_bytes, filename)
@@ -1164,18 +1207,17 @@ async def preview_data_endpoint(data_file: UploadFile = File(...)):
 
 @app.get("/api/download-sample/{sample_type}")
 async def download_sample(sample_type: str):
-    """Endpoint untuk men-download file dummy sample untuk testing."""
     if sample_type == "xml":
-        path = os.path.join(DUMMY_DIR, "template.xml")
+        path = os.path.join(SAMPLES_DIR, "template.xml")
         return FileResponse(path, filename="template_sample.xml", media_type="application/xml")
     elif sample_type == "docx":
-        path = os.path.join(DUMMY_DIR, "template.docx")
+        path = os.path.join(SAMPLES_DIR, "template.docx")
         return FileResponse(path, filename="template_sample.docx", media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
     elif sample_type == "pdf":
-        path = os.path.join(DUMMY_DIR, "template.pdf")
+        path = os.path.join(SAMPLES_DIR, "template.pdf")
         return FileResponse(path, filename="template_sample.pdf", media_type="application/pdf")
     elif sample_type == "csv":
-        path = os.path.join(DUMMY_DIR, "data_nasabah.csv")
+        path = os.path.join(SAMPLES_DIR, "data_nasabah.csv")
         return FileResponse(path, filename="data_nasabah_sample.csv", media_type="text/csv")
     else:
         raise HTTPException(status_code=404, detail="Tipe sample tidak ditemukan.")
