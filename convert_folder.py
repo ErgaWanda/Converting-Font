@@ -1,14 +1,3 @@
-
-"""
-Astra Life Document Automation Engine - Folder & Batch Font Converter CLI
-Mengonversi seluruh deklarasi font Arial ke Roboto pada semua file .xml dan .docx dalam 1 folder.
-
-Penggunaan:
-    python convert_folder.py "C:\\path\\ke\\folder_dokumen"
-    python convert_folder.py "C:\\path\\ke\\folder_dokumen" --output "C:\\path\\ke\\folder_hasil"
-    python convert_folder.py "C:\\path\\ke\\folder_dokumen" --no-recursive
-"""
-
 import os
 import sys
 import argparse
