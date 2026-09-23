@@ -207,8 +207,10 @@ def convert_xml_to_font(xml_bytes: bytes, target_font: str = "roboto") -> tuple[
     known_source_fonts = [
         'ArialMT', 'Arial-BoldMT', 'Arial-ItalicMT', 'Arial-BoldItalicMT',
         'Arial', 'Calibri', 'Times New Roman', 'TimesNewRoman', 'Times',
-        'Neo Sans Pro', 'Neo Sans', 'NeoSans', 'Segoe UI', 'SegoeUI',
-        'Helvetica', 'Tahoma', 'Verdana', 'Aptos', 'Cambria', 'Garamond'
+        'Neo Sans Pro', 'NeoSansPro', 'Neo Sans Intel', 'NeoSans Intel',
+        'Neo-Sans-Pro', 'Neo-Sans', 'Neo Sans', 'NeoSans',
+        'Segoe UI', 'SegoeUI', 'Helvetica', 'Tahoma', 'Verdana',
+        'Aptos', 'Cambria', 'Garamond'
     ]
 
     try:
@@ -258,12 +260,12 @@ def convert_xml_to_font(xml_bytes: bytes, target_font: str = "roboto") -> tuple[
         converted_xml = out_stream.getvalue()
 
     except Exception:
-        pattern = r'(?i)\b(Arial|Calibri|Times New Roman|Neo Sans Pro|Segoe UI|Helvetica)\b'
+        pattern = r'(?i)\b(Arial|Calibri|Times New Roman|Neo[\s\-_]?Sans(?:[\s\-_]?Pro|[\s\-_]?Intel)?|NeoSansPro|NeoSans|Segoe UI|Helvetica)\b'
         converted_str, count = re.subn(pattern, target_family, xml_str)
         converted_xml = converted_str.encode('utf-8')
 
     converted_str = converted_xml.decode('utf-8', errors='replace')
-    extra_pattern = r'(?i)\b(Arial|Calibri|Times New Roman|Times|Neo Sans Pro)\b'
+    extra_pattern = r'(?i)\b(Arial|Calibri|Times New Roman|Times|Neo[\s\-_]?Sans(?:[\s\-_]?Pro|[\s\-_]?Intel)?|NeoSansPro|NeoSans)\b'
     extra_subs, extra_count = re.subn(extra_pattern, target_family, converted_str)
     if extra_count > 0:
         converted_xml = extra_subs.encode('utf-8')
@@ -331,7 +333,7 @@ def convert_rtf_to_font(rtf_bytes: bytes, target_font: str = "roboto") -> tuple[
 
     rtf_str = fonttbl_pattern.sub(process_fonttbl_block, rtf_str)
 
-    src_pattern = r'\b(Arial|Calibri|Times New Roman|Segoe UI|Helvetica)\b'
+    src_pattern = r'\b(Arial|Calibri|Times New Roman|Segoe UI|Helvetica|Neo[\s\-_]?Sans(?:[\s\-_]?Pro|[\s\-_]?Intel)?|NeoSansPro|NeoSans)\b'
     rtf_str, extra_subs = re.subn(src_pattern, target_family, rtf_str, flags=re.IGNORECASE)
     count += extra_subs
 
@@ -394,6 +396,23 @@ def convert_doc_to_font(doc_bytes: bytes, target_font: str = "roboto") -> tuple[
     if n_wide > 0:
         result = result.replace(arial_wide, target_wide)
         count += n_wide
+
+    neo_variants_bin = [
+        b'NeoSansPro-BoldItalic',
+        b'NeoSansPro-Bold',
+        b'NeoSansPro-Medium',
+        b'NeoSansPro-Regular',
+        b'NeoSansPro',
+        b'Neo Sans Pro',
+        b'Neo Sans',
+        b'NeoSans',
+    ]
+    for neo_src in neo_variants_bin:
+        neo_repl = target_family.encode('latin-1', errors='replace').ljust(len(neo_src))[:len(neo_src)]
+        n = result.count(neo_src)
+        if n > 0:
+            result = result.replace(neo_src, neo_repl)
+            count += n
 
     return result, count
 
