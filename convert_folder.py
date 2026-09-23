@@ -4,43 +4,45 @@ import argparse
 import time
 from pathlib import Path
 
+from main import process_single_file_content, get_target_font
 
-from main import convert_xml_arial_to_roboto, convert_docx_arial_to_roboto
-
-
-def process_folder(input_dir: str, output_dir: str = None, recursive: bool = True):
+def process_folder(input_dir: str, output_dir: str = None, target_font: str = "roboto", recursive: bool = True):
     input_path = Path(input_dir).resolve()
     if not input_path.exists() or not input_path.is_dir():
         print(f"[ERROR] Folder input '{input_dir}' tidak ditemukan atau bukan direktori.")
         sys.exit(1)
 
+    font_cfg = get_target_font(target_font)
+    prefix = font_cfg['prefix']
+    font_name = font_cfg['name']
+
     if output_dir:
         output_path = Path(output_dir).resolve()
     else:
-        output_path = input_path.parent / f"{input_path.name}_ROBOTO"
+        output_path = input_path.parent / f"{input_path.name}_{font_cfg['id'].upper()}"
 
     output_path.mkdir(parents=True, exist_ok=True)
 
     print("=" * 70)
-    print("   ASTRA LIFE - BATCH FONT CONVERTER (Arial -> Roboto)")
+    print(f"   ASTRA LIFE - BATCH FONT CONVERTER (Target Font: {font_name})")
     print("=" * 70)
     print(f"Folder Sumber : {input_path}")
     print(f"Folder Output : {output_path}")
+    print(f"Font Tujuan   : {font_name} (Prefix: {prefix})")
     print(f"Pencarian     : {'Rekursif (termasuk sub-folder)' if recursive else 'Hanya folder utama'}")
     print("-" * 70)
 
-
     files_to_process = []
     pattern = "**/*" if recursive else "*"
+    valid_extensions = ['.xml', '.docx', '.doc', '.pdf', '.rtf']
     for item in input_path.glob(pattern):
-        if item.is_file() and item.suffix.lower() in ['.xml', '.docx']:
-
+        if item.is_file() and item.suffix.lower() in valid_extensions:
             if not item.name.startswith("~$"):
                 files_to_process.append(item)
 
     total_files = len(files_to_process)
     if total_files == 0:
-        print("[INFO] Tidak ditemukan file .xml atau .docx di dalam folder tersebut.")
+        print("[INFO] Tidak ditemukan file yang didukung (.xml, .docx, .doc, .pdf, .rtf) di dalam folder tersebut.")
         return
 
     print(f"[FOUND] Menemukan {total_files} file yang akan dikonversi...\n")
@@ -53,7 +55,7 @@ def process_folder(input_dir: str, output_dir: str = None, recursive: bool = Tru
     for idx, file_path in enumerate(files_to_process, 1):
         rel_path = file_path.relative_to(input_path)
 
-        dest_filename = f"Roboto_{file_path.name}"
+        dest_filename = f"{prefix}{file_path.name}"
         dest_file_path = output_path / rel_path.parent / dest_filename
         dest_file_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -61,13 +63,7 @@ def process_folder(input_dir: str, output_dir: str = None, recursive: bool = Tru
             with open(file_path, "rb") as f:
                 content = f.read()
 
-            ext = file_path.suffix.lower()
-            if ext == ".xml":
-                converted_bytes, replacements = convert_xml_arial_to_roboto(content)
-            elif ext == ".docx":
-                converted_bytes, replacements = convert_docx_arial_to_roboto(content)
-            else:
-                continue
+            converted_bytes, _, replacements = process_single_file_content(content, file_path.name, target_font)
 
             with open(dest_file_path, "wb") as f:
                 f.write(converted_bytes)
@@ -86,23 +82,22 @@ def process_folder(input_dir: str, output_dir: str = None, recursive: bool = Tru
     print(f"  - Total File Diproses : {total_files}")
     print(f"  - Berhasil Dikonversi : {success_count} file")
     print(f"  - Gagal               : {fail_count} file")
-    print(f"  - Total Penggantian   : {total_replacements} deklarasi font Arial -> Roboto")
+    print(f"  - Total Penggantian   : {total_replacements} elemen font -> {font_name}")
     print(f"  - Waktu Eksekusi      : {elapsed:.2f} detik")
     print(f"  - Lokasi Hasil        : {output_path}")
     print("=" * 70)
 
-
 def main():
     parser = argparse.ArgumentParser(
-        description="Konversi font Arial ke Roboto untuk seluruh file XML & DOCX dalam 1 folder."
+        description="Konversi seluruh file PDF, DOCX, DOC, XML, & RTF dalam 1 folder ke font pilihan."
     )
-    parser.add_argument("folder", help="Path ke folder yang berisi dokumen (.xml / .docx)")
-    parser.add_argument("-o", "--output", help="Path ke folder output (opsional, default: <folder>_ROBOTO)", default=None)
+    parser.add_argument("folder", help="Path ke folder yang berisi dokumen")
+    parser.add_argument("-o", "--output", help="Path ke folder output (opsional)", default=None)
+    parser.add_argument("-f", "--font", help="Pilihan font tujuan (roboto, opensans, montserrat, arial, times, calibri, segoeui)", default="roboto")
     parser.add_argument("--no-recursive", action="store_true", help="Jangan cari subfolder (hanya folder tingkat pertama)")
 
     args = parser.parse_args()
-    process_folder(args.folder, args.output, recursive=not args.no_recursive)
-
+    process_folder(args.folder, args.output, target_font=args.font, recursive=not args.no_recursive)
 
 if __name__ == "__main__":
     main()
