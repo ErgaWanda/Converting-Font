@@ -127,7 +127,7 @@
 
                 <div id="font-drop-zone"
                     class="border-2 border-dashed border-slate-200 hover:border-slate-800 bg-slate-50/50 hover:bg-slate-50/90 rounded-xl p-6 sm:p-7 text-center cursor-pointer transition-all duration-200 relative group">
-                    <input type="file" id="font-file-input" class="hidden" accept=".xml,.docx,.pdf,.zip" multiple />
+                    <input type="file" id="font-file-input" class="hidden" accept=".xml,.docx,.doc,.pdf,.rtf,.zip" multiple />
 
                     <div id="font-upload-placeholder" class="flex flex-col items-center justify-center space-y-2.5">
                         <div
@@ -156,6 +156,11 @@
                             </span>
                             <span
                                 class="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-700 font-semibold shadow-2xs">
+                                <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
+                                DOC
+                            </span>
+                            <span
+                                class="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-700 font-semibold shadow-2xs">
                                 <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                                 XML
                             </span>
@@ -163,6 +168,11 @@
                                 class="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-700 font-semibold shadow-2xs">
                                 <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
                                 ZIP
+                            </span>
+                            <span
+                                class="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-700 font-semibold shadow-2xs">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                RTF
                             </span>
                             <span
                                 class="inline-flex items-center px-2 py-0.5 bg-slate-900 text-white rounded text-[9px] font-sans font-semibold">
@@ -410,16 +420,20 @@
         });
 
         function handleFontFilesSelect(files) {
-            const allowed = ['xml', 'docx', 'pdf', 'zip'];
             const validFiles = files.filter(f => {
-                const ext = f.name.split('.').pop().toLowerCase();
-                return allowed.includes(ext);
+                const name = f.name || '';
+                const match = /\.(xml|docx|doc|pdf|rtf|zip)$/i.test(name);
+                console.log('[upload] file:', name, '| ext match:', match, '| type:', f.type);
+                return match;
             });
 
             if (validFiles.length === 0) {
-                showFontError('Format file tidak didukung. Harap upload file .pdf, .docx, .xml, atau .zip.');
+                const names = files.map(f => f.name).join(', ');
+                console.warn('[upload] REJECTED files:', names);
+                showFontError('Format file tidak didukung. Harap upload file .pdf, .docx, .doc, .xml, .rtf, atau .zip.');
                 return;
             }
+
 
             hideFontError();
             fontResultCard.classList.add('hidden');

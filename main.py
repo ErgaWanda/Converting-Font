@@ -110,6 +110,161 @@ def convert_xml_arial_to_roboto(xml_bytes: bytes) -> tuple[bytes, int]:
     return converted_xml, count
 
 
+def convert_rtf_arial_to_roboto(rtf_bytes: bytes) -> tuple[bytes, int]:
+    """Konversi referensi font Arial ke Roboto dalam dokumen RTF.
+
+    Menggunakan dua lapis penggantian:
+    1. Regex bertarget pada blok \\fonttbl untuk mengganti deklarasi font secara presisi.
+    2. Regex fallback global untuk menangkap sisa referensi Arial di luar fonttbl.
+
+    PENTING: Encode balik dengan encoding yang sama agar file tidak membengkak.
+    RTF dengan data binary (gambar) akan membengkak 2-8x jika di-encode ulang ke UTF-8.
+    """
+    count = 0
+
+    # Deteksi encoding RTF dan catat encoding yang berhasil dipakai
+    # PENTING: harus encode balik dengan encoding yang SAMA agar tidak ada ekspansi ukuran
+    encoding_used = 'latin-1'  # default RTF: ANSI/Latin-1
+    try:
+        # Coba UTF-8 dulu (hanya berhasil jika file memang pure UTF-8, jarang untuk RTF)
+        rtf_str = rtf_bytes.decode('utf-8')
+        # Verifikasi ini benar-benar UTF-8 bukan latin-1 yang kebetulan valid
+        # Jika ada karakter multibyte UTF-8, ini memang UTF-8
+        if any(ord(c) > 0xFF for c in rtf_str):
+            encoding_used = 'utf-8'
+        else:
+            # Semua karakter masuk latin-1 range — decode ulang sebagai latin-1 agar encode balik aman
+            rtf_str = rtf_bytes.decode('latin-1')
+            encoding_used = 'latin-1'
+    except UnicodeDecodeError:
+        try:
+            rtf_str = rtf_bytes.decode('latin-1')
+            encoding_used = 'latin-1'
+        except UnicodeDecodeError:
+            rtf_str = rtf_bytes.decode('cp1252', errors='replace')
+            encoding_used = 'cp1252'
+
+    # Validasi bahwa ini memang file RTF
+    if not rtf_str.strip().startswith('{\\rtf'):
+        raise ValueError("File bukan dokumen RTF yang valid.")
+
+    # --- Lapis 1: Ganti nama font dalam blok \fonttbl ---
+    # Contoh: {\f0\fswiss\fcharset0 Arial;} -> {\f0\fswiss\fcharset0 Roboto;}
+    # Tangani berbagai varian nama: Arial, ArialMT, Arial-BoldMT, Arial Bold, Arial Narrow, dll.
+    arial_font_pattern = re.compile(
+        r'(\\f\d+[^;{]*?)\s+(Arial(?:-\w+|\s+\w+)*)\s*;',
+        re.IGNORECASE
+    )
+
+    def replace_in_fonttbl(m):
+        nonlocal count
+        original_name = m.group(2)
+        lower = original_name.lower()
+        if 'bold' in lower and 'italic' in lower:
+            new_name = 'Roboto Bold Italic'
+        elif 'boldmt' in lower or 'bold' in lower:
+            new_name = 'Roboto Bold'
+        elif 'italic' in lower or 'oblique' in lower:
+            new_name = 'Roboto Italic'
+        elif 'narrow' in lower:
+            new_name = 'Roboto Condensed'
+        else:
+            new_name = 'Roboto'
+        count += 1
+        return f"{m.group(1)} {new_name};"
+
+    # Temukan blok \fonttbl dan ganti di dalamnya
+    fonttbl_pattern = re.compile(r'(\{\\fonttbl)(.*?)(\})', re.DOTALL)
+
+    def process_fonttbl_block(m):
+        prefix = m.group(1)
+        body = arial_font_pattern.sub(replace_in_fonttbl, m.group(2))
+        suffix = m.group(3)
+        return prefix + body + suffix
+
+    rtf_str = fonttbl_pattern.sub(process_fonttbl_block, rtf_str)
+
+    # --- Lapis 2: Regex fallback global ---
+    rtf_str, extra_subs = re.subn(r'\bArial\b', 'Roboto', rtf_str, flags=re.IGNORECASE)
+    count += extra_subs
+
+    # Encode balik dengan encoding YANG SAMA saat decode
+    # Ini krusial: RTF latin-1 → utf-8 akan mengembangkan setiap byte 0x80-0xFF menjadi 2 byte
+    result_bytes = rtf_str.encode(encoding_used, errors='replace')
+
+    return result_bytes, count
+
+
+
+def convert_doc_arial_to_roboto(doc_bytes: bytes) -> tuple[bytes, int]:
+    """Konversi font Arial ke Roboto dalam file .doc (Word 97-2003 binary format).
+
+    Strategi berlapis:
+    0. Cek apakah isi file sebenarnya RTF — banyak .doc lama menyimpan konten RTF.
+    1. Coba buka sebagai .docx (OOXML) — beberapa .doc sebenarnya OOXML yang salah ekstensi.
+    2. Fallback: cari dan ganti nama font Arial di binary stream (ASCII & UTF-16 LE).
+    """
+    # --- Lapis 0: Deteksi RTF di dalam file .doc ---
+    # Banyak file Word 97-2003 (.doc) sebenarnya adalah RTF yang disimpan dengan ekstensi salah.
+    # Cek magic bytes: RTF selalu dimulai dengan "{\rtf"
+    for encoding in ('utf-8', 'latin-1', 'cp1252'):
+        try:
+            peek = doc_bytes[:20].decode(encoding)
+            if peek.strip().startswith('{\\rtf'):
+                # Ini file RTF — proses sebagai RTF
+                return convert_rtf_arial_to_roboto(doc_bytes)
+            break
+        except UnicodeDecodeError:
+            continue
+
+    # --- Lapis 1: Coba buka sebagai DOCX (OOXML) ---
+    # Beberapa file .doc sebenarnya adalah Office Open XML (ZIP-based) yang salah diberi ekstensi
+    try:
+        converted_bytes, count = convert_docx_arial_to_roboto(doc_bytes)
+        return converted_bytes, count
+    except Exception:
+        pass
+
+    # --- Lapis 2: Binary stream replacement ---
+    # File .doc menyimpan nama font sebagai string ASCII dan UTF-16 LE di dalam binary stream.
+    count = 0
+    arial_variants = [
+        (b'Arial-BoldItalicMT', b'Roboto-BoldItalic '),  # 18 char
+        (b'Arial-BoldMT',       b'Roboto-Bold  '),        # 12 char
+        (b'Arial-ItalicMT',     b'Roboto-Italic '),       # 14 char
+        (b'ArialMT',            b'Roboto '),              # 7 char
+        (b'Arial Unicode MS',   b'Roboto          '),     # 16 char
+        (b'Arial Narrow',       b'Roboto Cond.'),         # 12 char
+        (b'Arial Bold',         b'Roboto Bold'),          # 10 char
+        (b'Arial Italic',       b'Roboto Italic'),        # 12 char
+    ]
+
+    result = doc_bytes
+    for old, new in arial_variants:
+        if len(old) != len(new):
+            continue
+        n = result.count(old)
+        if n > 0:
+            result = result.replace(old, new)
+            count += n
+
+    # Ganti sisa "Arial" standalone dalam konteks null-byte (ASCII dalam binary stream)
+    arial_bin_pat = re.compile(b'(?<=\x00)Arial(?=[\x00\x20])', re.IGNORECASE)
+    result, n = arial_bin_pat.subn(b'Robot', result)
+    count += n
+
+    # Ganti dalam UTF-16 LE (wide-char strings yang umum di Office binary formats)
+    arial_wide = 'Arial'.encode('utf-16-le')
+    roboto_wide = 'Robot'.encode('utf-16-le')  # sama panjang: 5 char × 2 byte = 10 byte
+    n_wide = result.count(arial_wide)
+    if n_wide > 0:
+        result = result.replace(arial_wide, roboto_wide)
+        count += n_wide
+
+    return result, count
+
+
+
 def convert_docx_arial_to_roboto(docx_bytes: bytes) -> tuple[bytes, int]:
     doc = docx.Document(io.BytesIO(docx_bytes))
     count = 0
@@ -1000,7 +1155,11 @@ def generate_batch_pdf_zip(template_bytes: bytes, df: pd.DataFrame) -> tuple[io.
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse(request=request, name="index.html")
+    response = templates.TemplateResponse(request=request, name="index.html")
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -1026,10 +1185,16 @@ def process_single_file_content(file_bytes: bytes, filename: str) -> tuple[bytes
     elif ext == 'pdf':
         converted_bytes, replacements = convert_pdf_all_to_roboto(file_bytes)
         media_type = "application/pdf"
+    elif ext == 'rtf':
+        converted_bytes, replacements = convert_rtf_arial_to_roboto(file_bytes)
+        media_type = "application/rtf"
+    elif ext == 'doc':
+        converted_bytes, replacements = convert_doc_arial_to_roboto(file_bytes)
+        media_type = "application/msword"
     else:
         raise HTTPException(
             status_code=400,
-            detail=f"Tipe file '{filename}' tidak didukung. Format yang didukung: .xml, .docx, .pdf, atau .zip."
+            detail=f"Tipe file '{filename}' tidak didukung. Format yang didukung: .xml, .docx, .doc, .pdf, .rtf, atau .zip."
         )
     return converted_bytes, media_type, replacements
 
@@ -1103,7 +1268,7 @@ async def convert_font_endpoint(
                             if item.is_dir() or item.filename.startswith('__MACOSX') or item.filename.split('/')[-1].startswith('.'):
                                 continue
                             item_ext = item.filename.lower().split('.')[-1]
-                            if item_ext in ['xml', 'docx', 'pdf']:
+                            if item_ext in ['xml', 'docx', 'doc', 'pdf', 'rtf']:
                                 raw_item_bytes = in_zf.read(item)
                                 c_bytes, _, reps = process_single_file_content(raw_item_bytes, item.filename)
                                 parts = item.filename.split('/')
@@ -1114,7 +1279,7 @@ async def convert_font_endpoint(
                                 total_replacements += reps
                 except Exception as e:
                     raise HTTPException(status_code=400, detail=f"Gagal memproses file ZIP '{fname}': {str(e)}")
-            elif f_ext in ['xml', 'docx', 'pdf']:
+            elif f_ext in ['xml', 'docx', 'doc', 'pdf', 'rtf']:
                 c_bytes, _, reps = process_single_file_content(fbytes, fname)
                 entry_name = get_unique_zip_entry(f"Roboto_{fname}")
                 zf.writestr(entry_name, c_bytes)
@@ -1122,7 +1287,7 @@ async def convert_font_endpoint(
                 total_replacements += reps
 
     if total_converted == 0:
-        raise HTTPException(status_code=400, detail="Tidak ditemukan file PDF, DOCX, atau XML yang valid untuk dikonversi.")
+        raise HTTPException(status_code=400, detail="Tidak ditemukan file PDF, DOCX, DOC, XML, atau RTF yang valid untuk dikonversi.")
 
     out_zip_buffer.seek(0)
 
