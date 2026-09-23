@@ -606,6 +606,11 @@ def _clear_font_dict(obj_str: str) -> str:
         return obj_str[:dict_start] + '<<>>' + obj_str[i:]
     return obj_str
 
+def _clear_all_font_refs(obj_str: str) -> str:
+    result = re.sub(r'/Font\s+\d+\s+0\s+R\b', '/Font <<>>', obj_str)
+    result = _clear_font_dict(result)
+    return result
+
 def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[bytes, int]:
     font_cfg = get_target_font(target_font)
     family_clean = font_cfg['family'].replace(' ', '')
@@ -1077,6 +1082,19 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
         all_pages_elements.append(elements_to_draw)
 
 
+    _gfont_indirect_re = re.compile(r'/Font\s+\d+\s+0\s+R\b')
+    for _gx in range(1, doc.xref_length()):
+        try:
+            _gobj = doc.xref_object(_gx, compressed=False)
+            if not _gobj or '/Font' not in _gobj:
+                continue
+            _gnew = _gfont_indirect_re.sub('/Font <<>>', _gobj)
+            _gnew = _clear_font_dict(_gnew)
+            if _gnew != _gobj:
+                doc.update_object(_gx, _gnew)
+        except Exception:
+            pass
+
     for xref in range(1, doc.xref_length()):
         try:
             obj_str = doc.xref_object(xref, compressed=False)
@@ -1087,11 +1105,11 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                     if m:
                         res_xref = int(m.group(1))
                         res_obj = doc.xref_object(res_xref, compressed=False)
-                        new_res = _clear_font_dict(res_obj)
+                        new_res = _clear_all_font_refs(res_obj)
                         if new_res != res_obj:
                             doc.update_object(res_xref, new_res)
                     elif '/Font' in obj_str:
-                        new_obj = _clear_font_dict(obj_str)
+                        new_obj = _clear_all_font_refs(obj_str)
                         if new_obj != obj_str:
                             doc.update_object(xref, new_obj)
 
@@ -1122,11 +1140,11 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
             if m:
                 res_xref = int(m.group(1))
                 res_obj = doc.xref_object(res_xref, compressed=False)
-                new_res = _clear_font_dict(res_obj)
+                new_res = _clear_all_font_refs(res_obj)
                 if new_res != res_obj:
                     doc.update_object(res_xref, new_res)
             elif '/Font' in p_obj:
-                new_p_obj = _clear_font_dict(p_obj)
+                new_p_obj = _clear_all_font_refs(p_obj)
                 if new_p_obj != p_obj:
                     doc.update_object(page.xref, new_p_obj)
         except Exception:
@@ -1157,6 +1175,33 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
         doc.subset_fonts()
     except Exception:
         pass
+
+    _fn_re = re.compile(r'/(?:BaseFont|FontName)\s*/([^\s/\[\]<>()\r\n]+)', re.IGNORECASE)
+    _ftype_re = re.compile(r'/Type\s*/(?:Font|FontDescriptor)\b|/Subtype\s*/(?:Type0|Type1|TrueType|CIDFontType0|CIDFontType2|MMType1|Type3|OpenType)\b', re.IGNORECASE)
+    for x in range(1, doc.xref_length()):
+        try:
+            obj_str = doc.xref_object(x, compressed=False)
+            if not obj_str or obj_str.strip() in ('', 'null', '<< >>'):
+                continue
+            if not _ftype_re.search(obj_str):
+                continue
+            nm = _fn_re.search(obj_str)
+            raw_name = nm.group(1).lower() if nm else ''
+            clean_name = re.sub(r'^[A-Za-z0-9]{6}\+', '', raw_name)
+            if 'roboto' in clean_name:
+                continue
+            try:
+                s = doc.xref_stream(x)
+                if s is not None:
+                    doc.update_stream(x, b'\n')
+            except Exception:
+                pass
+            try:
+                doc.update_object(x, '<< >>')
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     for x in range(1, doc.xref_length()):
         try:
