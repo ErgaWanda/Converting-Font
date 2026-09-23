@@ -162,6 +162,8 @@ ROBOTO_FONTS = FONTS_REGISTRY['roboto']['files']
 
 def get_target_font(font_key: Optional[str] = None):
     raw_key = (font_key or 'roboto').strip().lower().replace('-', '').replace(' ', '').replace('_', '')
+    if raw_key in ['auto', 'default', '']:
+        return FONTS_REGISTRY['roboto']
     for reg_key, cfg in FONTS_REGISTRY.items():
         clean_name = cfg['name'].lower().replace(' ', '').replace('-', '').replace('_', '')
         clean_fam = cfg['family'].lower().replace(' ', '').replace('-', '').replace('_', '')
