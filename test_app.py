@@ -340,6 +340,39 @@ def test_backend_logic():
     assert res_target_api.headers.get("x-target-font") == "Montserrat"
     print("POST /api/convert-font with target_font=montserrat OK.")
 
+    neo_xml = b'<?xml version="1.0"?><doc><item font-family="Neo Sans Pro">Neo Sans Text</item><item font-family="NeoSans">NeoSans Text</item><item font-family="NeoSansPro">NeoSansPro Text</item></doc>'
+    converted_neo_xml, count_neo = convert_xml_to_font(neo_xml, 'roboto')
+    assert count_neo >= 3, f"Expected >= 3 replacements, got {count_neo}"
+    assert b"Roboto" in converted_neo_xml
+    assert b"Neo Sans" not in converted_neo_xml
+    assert b"NeoSans" not in converted_neo_xml
+    print("Neo Sans XML -> Roboto OK: All Neo Sans variants replaced.")
+
+    neo_docx = docx.Document()
+    p_neo1 = neo_docx.add_paragraph()
+    r_neo1 = p_neo1.add_run("Neo Sans Pro Run")
+    r_neo1.font.name = "Neo Sans Pro"
+    p_neo2 = neo_docx.add_paragraph()
+    r_neo2 = p_neo2.add_run("NeoSans Run")
+    r_neo2.font.name = "NeoSans"
+    neo_docx_buf = io.BytesIO()
+    neo_docx.save(neo_docx_buf)
+    converted_neo_docx, neo_docx_count = convert_docx_to_font(neo_docx_buf.getvalue(), "roboto")
+    assert neo_docx_count >= 2, f"Expected >= 2 DOCX replacements, got {neo_docx_count}"
+    doc_neo_chk = docx.Document(io.BytesIO(converted_neo_docx))
+    for p in doc_neo_chk.paragraphs:
+        for r in p.runs:
+            assert r.font.name == "Roboto", f"Expected Roboto, got {r.font.name}"
+    print("Neo Sans DOCX -> Roboto OK: Neo Sans Pro and NeoSans runs converted.")
+
+    auto_cfg = get_target_font("auto")
+    assert auto_cfg["family"] == "Roboto", f"Auto mode must map to Roboto, got {auto_cfg['family']}"
+    auto_cfg2 = get_target_font("")
+    assert auto_cfg2["family"] == "Roboto"
+    auto_cfg3 = get_target_font(None)
+    assert auto_cfg3["family"] == "Roboto"
+    print("Auto Mode Mapping OK: 'auto', '', None all resolve to Roboto.")
+
     print("ALL TESTS PASSED!")
 
 if __name__ == "__main__":
