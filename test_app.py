@@ -8,12 +8,17 @@ from fastapi.testclient import TestClient
 from main import (
     app,
     convert_xml_arial_to_roboto,
+    convert_xml_to_font,
     convert_docx_arial_to_roboto,
+    convert_docx_to_font,
     convert_pdf_all_to_roboto,
+    convert_pdf_to_font,
     load_dataset,
     generate_batch_xml_zip,
     generate_batch_pdf_zip,
-    ROBOTO_FONTS
+    ROBOTO_FONTS,
+    FONTS_REGISTRY,
+    get_target_font
 )
 
 def test_backend_logic():
@@ -262,6 +267,78 @@ def test_backend_logic():
         res = client.get(f"/api/download-sample/{sample}")
         assert res.status_code == 200
         print(f"GET /api/download-sample/{sample} OK")
+
+    res_fonts = client.get("/api/fonts")
+    assert res_fonts.status_code == 200
+    font_data = res_fonts.json()
+    assert font_data["default"] == "roboto"
+    available_ids = [f["id"] for f in font_data["fonts"]]
+    for expected_id in ["roboto", "opensans", "montserrat", "arial", "times", "calibri", "segoeui"]:
+        assert expected_id in available_ids, f"Font {expected_id} should be available"
+    print("GET /api/fonts OK: All 7 target fonts registered and exposed.")
+
+    converted_opensans_xml, count_os = convert_xml_to_font(xml_bytes, "opensans")
+    assert count_os > 0
+    assert b"Open Sans" in converted_opensans_xml
+    assert b"Arial" not in converted_opensans_xml
+    print("XML to Open Sans OK.")
+
+    converted_mont_xml, count_mont = convert_xml_to_font(xml_bytes, "montserrat")
+    assert count_mont > 0
+    assert b"Montserrat" in converted_mont_xml
+    assert b"Arial" not in converted_mont_xml
+    print("XML to Montserrat OK.")
+
+    custom_xml = b'<?xml version="1.0"?><doc><item font-family="Calibri">Calibri Text</item><item font-family="Times New Roman">Times Text</item></doc>'
+    converted_custom_xml, count_c = convert_xml_to_font(custom_xml, "roboto")
+    assert count_c >= 2
+    assert b"Roboto" in converted_custom_xml
+    assert b"Calibri" not in converted_custom_xml
+    assert b"Times New Roman" not in converted_custom_xml
+    print("Universal Source Font XML OK: Calibri and Times New Roman converted to Roboto.")
+
+    custom_docx = docx.Document()
+    p1 = custom_docx.add_paragraph()
+    r1 = p1.add_run("Calibri Run")
+    r1.font.name = "Calibri"
+    p2 = custom_docx.add_paragraph()
+    r2 = p2.add_run("Times Run")
+    r2.font.name = "Times New Roman"
+    docx_buf = io.BytesIO()
+    custom_docx.save(docx_buf)
+    converted_multi_docx, docx_m_count = convert_docx_to_font(docx_buf.getvalue(), "montserrat")
+    assert docx_m_count >= 2
+    doc_m_chk = docx.Document(io.BytesIO(converted_multi_docx))
+    for p in doc_m_chk.paragraphs:
+        for r in p.runs:
+            assert r.font.name == "Montserrat"
+    print("Universal Source Font DOCX OK: Calibri and Times New Roman converted to Montserrat.")
+
+    converted_os_pdf, os_p_count = convert_pdf_to_font(pdf_bytes, "opensans")
+    assert os_p_count > 0
+    doc_os = pymupdf.open(stream=converted_os_pdf, filetype="pdf")
+    os_fonts = doc_os[0].get_fonts()
+    assert any("OpenSans" in f[3] or "OpenSans" in f[4] for f in os_fonts)
+    doc_os.close()
+    print("PDF to Open Sans OK: OpenSans fonts applied.")
+
+    converted_mont_pdf, mont_p_count = convert_pdf_to_font(pdf_bytes, "montserrat")
+    assert mont_p_count > 0
+    doc_mont = pymupdf.open(stream=converted_mont_pdf, filetype="pdf")
+    mont_fonts = doc_mont[0].get_fonts()
+    assert any("Montserrat" in f[3] or "Montserrat" in f[4] for f in mont_fonts)
+    doc_mont.close()
+    print("PDF to Montserrat OK: Montserrat fonts applied.")
+
+    res_target_api = client.post(
+        "/api/convert-font",
+        files={"file": ("report.pdf", pdf_bytes, "application/pdf")},
+        data={"target_font": "montserrat"}
+    )
+    assert res_target_api.status_code == 200
+    assert 'filename="Montserrat_report.pdf"' in res_target_api.headers.get("content-disposition", "")
+    assert res_target_api.headers.get("x-target-font") == "Montserrat"
+    print("POST /api/convert-font with target_font=montserrat OK.")
 
     print("ALL TESTS PASSED!")
 

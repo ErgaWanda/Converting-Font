@@ -109,7 +109,7 @@
                 Tools Converting Font
             </h1>
             <p class="text-xs text-slate-500 mt-1 max-w-md mx-auto leading-relaxed">
-                Konversi font dokumen PDF, DOCX, dan XML ke font resmi Roboto dengan presisi tata letak 100%.
+                Konversi font dokumen PDF, DOCX, XML, & RTF ke font pilihan dengan presisi tata letak 100%.
             </p>
         </div>
 
@@ -125,9 +125,33 @@
                     class="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-slate-900/40 to-transparent">
                 </div>
 
+                <div class="mb-5 bg-slate-50/70 border border-slate-200/90 rounded-xl p-3.5 sm:p-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-2.5">
+                        <div class="flex items-center gap-2">
+                            <div class="w-6 h-6 rounded-lg bg-indigo-50 border border-indigo-200/80 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                                <i data-lucide="type" class="w-3.5 h-3.5"></i>
+                            </div>
+                            <div>
+                                <span class="text-xs font-bold text-slate-900 block leading-tight">Pilih Font Tujuan</span>
+                                <span class="text-[10px] text-slate-500 block leading-tight">Ubah semua font di dokumen ke font pilihan ini</span>
+                            </div>
+                        </div>
+                        <span id="target-font-badge" class="self-start sm:self-auto inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Google Font (Bawaan)
+                        </span>
+                    </div>
+
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5" id="font-selector-grid">
+                    </div>
+
+                    <p id="target-font-desc" class="text-[10px] text-slate-500 mt-2 px-0.5 truncate">
+                        Font resmi standar dengan keterbacaan tinggi dan proporsi seimbang.
+                    </p>
+                </div>
+
                 <div id="font-drop-zone"
                     class="border-2 border-dashed border-slate-200 hover:border-slate-800 bg-slate-50/50 hover:bg-slate-50/90 rounded-xl p-6 sm:p-7 text-center cursor-pointer transition-all duration-200 relative group">
-                    <input type="file" id="font-file-input" class="hidden" accept=".xml,.docx,.pdf,.zip" multiple />
+                    <input type="file" id="font-file-input" class="hidden" accept=".xml,.docx,.doc,.pdf,.rtf,.zip" multiple />
 
                     <div id="font-upload-placeholder" class="flex flex-col items-center justify-center space-y-2.5">
                         <div
@@ -156,6 +180,11 @@
                             </span>
                             <span
                                 class="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-700 font-semibold shadow-2xs">
+                                <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
+                                DOC
+                            </span>
+                            <span
+                                class="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-700 font-semibold shadow-2xs">
                                 <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                                 XML
                             </span>
@@ -163,6 +192,11 @@
                                 class="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-700 font-semibold shadow-2xs">
                                 <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
                                 ZIP
+                            </span>
+                            <span
+                                class="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-slate-200 rounded text-slate-700 font-semibold shadow-2xs">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                RTF
                             </span>
                             <span
                                 class="inline-flex items-center px-2 py-0.5 bg-slate-900 text-white rounded text-[9px] font-sans font-semibold">
@@ -200,7 +234,7 @@
                 <div class="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 pt-0.5">
                     <div class="text-[11px] text-slate-500 flex items-center gap-1.5">
                         <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-600 flex-shrink-0"></i>
-                        <span>Awalan berkas otomatis <code
+                        <span>Awalan berkas otomatis <code id="font-prefix-display"
                                 class="bg-slate-100 text-slate-900 px-1 py-0.5 rounded font-mono text-[10px] font-semibold border border-slate-200">Roboto_</code></span>
                     </div>
                     <button id="convert-font-btn" onclick="executeFontConversion()" disabled
@@ -360,6 +394,62 @@
         let batchZipBlobUrl = null;
         let batchZipFilename = '';
 
+        const TARGET_FONTS = [
+            { id: 'roboto', name: 'Roboto', prefix: 'Roboto_', badge: 'Google Font (Bawaan)', desc: 'Font resmi standar dengan keterbacaan tinggi dan proporsi seimbang.' },
+            { id: 'opensans', name: 'Open Sans', prefix: 'OpenSans_', badge: 'Google Font', desc: 'Font modern humanis sans-serif yang bersih dan mudah dibaca.' },
+            { id: 'montserrat', name: 'Montserrat', prefix: 'Montserrat_', badge: 'Google Font', desc: 'Font geometris sans-serif kontemporer terinspirasi tipografi urban.' },
+            { id: 'arial', name: 'Arial', prefix: 'Arial_', badge: 'System Font', desc: 'Font sans-serif klasik universal yang kompatibel di semua platform.' },
+            { id: 'times', name: 'Times New Roman', prefix: 'Times_', badge: 'System Font', desc: 'Font serif formal klasik standar untuk surat dan dokumen legal.' },
+            { id: 'calibri', name: 'Calibri', prefix: 'Calibri_', badge: 'System Font', desc: 'Font sans-serif modern Microsoft Office dengan sudut membulat.' },
+            { id: 'segoeui', name: 'Segoe UI', prefix: 'SegoeUI_', badge: 'System Font', desc: 'Font antarmuka modern Windows Fluent Design dengan tipografi tajam.' }
+        ];
+
+        let selectedTargetFont = 'roboto';
+
+        function initFontSelector() {
+            const container = document.getElementById('font-selector-grid');
+            if (!container) return;
+            container.innerHTML = '';
+
+            TARGET_FONTS.forEach(font => {
+                const isSelected = font.id === selectedTargetFont;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.id = `font-btn-${font.id}`;
+                btn.onclick = () => selectTargetFont(font.id);
+                btn.className = isSelected
+                    ? 'font-choice-btn flex items-center justify-between px-2.5 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-xs font-bold bg-slate-900 text-white border border-slate-900 shadow-xs transition-all text-left'
+                    : 'font-choice-btn flex items-center justify-between px-2.5 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-xs font-semibold bg-white text-slate-700 hover:bg-slate-100/90 border border-slate-200/90 hover:border-slate-300 transition-all text-left';
+
+                btn.innerHTML = `
+                    <span class="truncate">${font.name}</span>
+                    <i data-lucide="${isSelected ? 'check' : 'circle'}" class="w-3.5 h-3.5 ml-1.5 flex-shrink-0 ${isSelected ? 'text-emerald-400' : 'text-slate-300'}"></i>
+                `;
+                container.appendChild(btn);
+            });
+            lucide.createIcons();
+            updateFontMetaUI();
+        }
+
+        function selectTargetFont(fontId) {
+            selectedTargetFont = fontId;
+            initFontSelector();
+        }
+
+        function updateFontMetaUI() {
+            const font = TARGET_FONTS.find(f => f.id === selectedTargetFont) || TARGET_FONTS[0];
+            const badge = document.getElementById('target-font-badge');
+            const desc = document.getElementById('target-font-desc');
+            const prefixDisplay = document.getElementById('font-prefix-display');
+
+            if (badge) badge.textContent = font.badge;
+            if (desc) desc.textContent = font.desc;
+            if (prefixDisplay) prefixDisplay.textContent = font.prefix;
+        }
+
+        document.addEventListener('DOMContentLoaded', initFontSelector);
+        setTimeout(initFontSelector, 50);
+
         function switchTab(tab) {
             activeTab = tab;
             const fontBtn = document.getElementById('tab-font-btn');
@@ -410,16 +500,20 @@
         });
 
         function handleFontFilesSelect(files) {
-            const allowed = ['xml', 'docx', 'pdf', 'zip'];
             const validFiles = files.filter(f => {
-                const ext = f.name.split('.').pop().toLowerCase();
-                return allowed.includes(ext);
+                const name = f.name || '';
+                const match = /\.(xml|docx|doc|pdf|rtf|zip)$/i.test(name);
+                console.log('[upload] file:', name, '| ext match:', match, '| type:', f.type);
+                return match;
             });
 
             if (validFiles.length === 0) {
-                showFontError('Format file tidak didukung. Harap upload file .pdf, .docx, .xml, atau .zip.');
+                const names = files.map(f => f.name).join(', ');
+                console.warn('[upload] REJECTED files:', names);
+                showFontError('Format file tidak didukung. Harap upload file .pdf, .docx, .doc, .xml, .rtf, atau .zip.');
                 return;
             }
+
 
             hideFontError();
             fontResultCard.classList.add('hidden');
@@ -563,6 +657,10 @@
 
             const formData = new FormData();
             fontFiles.forEach(f => formData.append('files', f));
+            formData.append('target_font', selectedTargetFont);
+
+            const activeFontObj = TARGET_FONTS.find(f => f.id === selectedTargetFont) || TARGET_FONTS[0];
+            const activeFontName = activeFontObj.name;
 
             fontXhr = new XMLHttpRequest();
             fontXhr.open('POST', '/api/convert-font', true);
@@ -603,12 +701,12 @@
                         }
 
                         let title = 'Memindai Struktur Dokumen...';
-                        let desc = 'Menganalisis teks & mendeteksi deklarasi font Arial...';
+                        let desc = 'Menganalisis teks & mendeteksi deklarasi font...';
                         let step = 'Tahap 2 dari 4: Pemindaian Dokumen';
 
                         if (currentPct >= 45 && currentPct < 70) {
-                            title = 'Mengonversi Font ke Google Roboto...';
-                            desc = 'Menerapkan font resmi Roboto (Regular, Bold, Italic) dengan presisi...';
+                            title = `Mengonversi Font ke ${activeFontName}...`;
+                            desc = `Menerapkan font resmi ${activeFontName} dengan presisi...`;
                             step = 'Tahap 3 dari 4: Penggantian Font';
                         } else if (currentPct >= 70 && currentPct < 88) {
                             title = 'Memverifikasi Presisi Tata Letak...';
@@ -633,7 +731,7 @@
                     setFontProgress(
                         100,
                         'Konversi Berhasil 100%!',
-                        'Dokumen selesai diproses ke font Roboto. Mengunduh otomatis...',
+                        `Dokumen selesai diproses ke font ${activeFontName}. Mengunduh otomatis...`,
                         'Tahap 4 dari 4: Selesai'
                     );
 
@@ -655,8 +753,9 @@
                     const disposition = fontXhr.getResponseHeader('Content-Disposition') || '';
                     const convertedCount = fontXhr.getResponseHeader('X-Converted-Count') || '';
                     const replacementsCount = fontXhr.getResponseHeader('X-Replacements-Count') || '';
+                    const finalFontName = fontXhr.getResponseHeader('X-Target-Font') || activeFontName;
 
-                    let filename = fontFiles.length > 1 ? `Roboto_Converted_${fontFiles.length}_Files.zip` : `Roboto_${fontFiles[0].name}`;
+                    let filename = fontFiles.length > 1 ? `${activeFontObj.prefix}Converted_${fontFiles.length}_Files.zip` : `${activeFontObj.prefix}${fontFiles[0].name}`;
                     if (disposition.includes('filename=')) {
                         const match = disposition.match(/filename="?([^"]+)"?/);
                         if (match && match[1]) filename = match[1];
@@ -668,11 +767,11 @@
                     convertedFilename = filename;
 
                     if (convertedCount) {
-                        fontResultStats.textContent = `Berhasil mengonversi ${convertedCount} dokumen ke font Roboto (.zip). Unduhan otomatis dimulai!`;
+                        fontResultStats.textContent = `Berhasil mengonversi ${convertedCount} dokumen ke font ${finalFontName} (.zip). Unduhan otomatis dimulai!`;
                     } else if (replacementsCount) {
-                        fontResultStats.textContent = `Berhasil mengganti ${replacementsCount} elemen font ke Roboto TTF resmi. Unduhan otomatis dimulai!`;
+                        fontResultStats.textContent = `Berhasil mengganti ${replacementsCount} elemen font ke ${finalFontName}. Unduhan otomatis dimulai!`;
                     } else {
-                        fontResultStats.textContent = `Berhasil mengonversi font dokumen ke Roboto. File siap diunduh!`;
+                        fontResultStats.textContent = `Berhasil mengonversi font dokumen ke ${finalFontName}. File siap diunduh!`;
                     }
 
                     fontResultCard.classList.remove('hidden');

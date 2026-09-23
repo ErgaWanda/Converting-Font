@@ -35,62 +35,220 @@ os.makedirs(FONTS_DIR, exist_ok=True)
 
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
-ROBOTO_FONTS = {
-    'regular': os.path.join(FONTS_DIR, 'Roboto-Regular.ttf'),
-    'bold': os.path.join(FONTS_DIR, 'Roboto-Bold.ttf'),
-    'italic': os.path.join(FONTS_DIR, 'Roboto-Italic.ttf'),
-    'bolditalic': os.path.join(FONTS_DIR, 'Roboto-BoldItalic.ttf')
+FONTS_REGISTRY = {
+    'roboto': {
+        'id': 'roboto',
+        'name': 'Roboto',
+        'family': 'Roboto',
+        'prefix': 'Roboto_',
+        'badge': 'Google Font (Bawaan)',
+        'description': 'Font resmi standar dengan keterbacaan tinggi dan proporsi seimbang.',
+        'files': {
+            'regular': os.path.join(FONTS_DIR, 'Roboto-Regular.ttf'),
+            'bold': os.path.join(FONTS_DIR, 'Roboto-Bold.ttf'),
+            'italic': os.path.join(FONTS_DIR, 'Roboto-Italic.ttf'),
+            'bolditalic': os.path.join(FONTS_DIR, 'Roboto-BoldItalic.ttf')
+        },
+        'urls': {
+            'Roboto-Regular.ttf': 'https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-Regular.ttf',
+            'Roboto-Bold.ttf': 'https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-Bold.ttf',
+            'Roboto-Italic.ttf': 'https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-Italic.ttf',
+            'Roboto-BoldItalic.ttf': 'https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-BoldItalic.ttf'
+        }
+    },
+    'opensans': {
+        'id': 'opensans',
+        'name': 'Open Sans',
+        'family': 'Open Sans',
+        'prefix': 'OpenSans_',
+        'badge': 'Google Font',
+        'description': 'Font modern humanis sans-serif yang bersih dan mudah dibaca.',
+        'files': {
+            'regular': os.path.join(FONTS_DIR, 'OpenSans-Regular.ttf'),
+            'bold': os.path.join(FONTS_DIR, 'OpenSans-Bold.ttf'),
+            'italic': os.path.join(FONTS_DIR, 'OpenSans-Italic.ttf'),
+            'bolditalic': os.path.join(FONTS_DIR, 'OpenSans-BoldItalic.ttf')
+        },
+        'urls': {
+            'OpenSans-Regular.ttf': 'https://raw.githubusercontent.com/googlefonts/opensans/main/fonts/ttf/OpenSans-Regular.ttf',
+            'OpenSans-Bold.ttf': 'https://raw.githubusercontent.com/googlefonts/opensans/main/fonts/ttf/OpenSans-Bold.ttf',
+            'OpenSans-Italic.ttf': 'https://raw.githubusercontent.com/googlefonts/opensans/main/fonts/ttf/OpenSans-Italic.ttf',
+            'OpenSans-BoldItalic.ttf': 'https://raw.githubusercontent.com/googlefonts/opensans/main/fonts/ttf/OpenSans-BoldItalic.ttf'
+        }
+    },
+    'montserrat': {
+        'id': 'montserrat',
+        'name': 'Montserrat',
+        'family': 'Montserrat',
+        'prefix': 'Montserrat_',
+        'badge': 'Google Font',
+        'description': 'Font geometris sans-serif kontemporer terinspirasi tipografi urban.',
+        'files': {
+            'regular': os.path.join(FONTS_DIR, 'Montserrat-Regular.ttf'),
+            'bold': os.path.join(FONTS_DIR, 'Montserrat-Bold.ttf'),
+            'italic': os.path.join(FONTS_DIR, 'Montserrat-Italic.ttf'),
+            'bolditalic': os.path.join(FONTS_DIR, 'Montserrat-BoldItalic.ttf')
+        },
+        'urls': {
+            'Montserrat-Regular.ttf': 'https://raw.githubusercontent.com/JulietaUla/Montserrat/master/fonts/ttf/Montserrat-Regular.ttf',
+            'Montserrat-Bold.ttf': 'https://raw.githubusercontent.com/JulietaUla/Montserrat/master/fonts/ttf/Montserrat-Bold.ttf',
+            'Montserrat-Italic.ttf': 'https://raw.githubusercontent.com/JulietaUla/Montserrat/master/fonts/ttf/Montserrat-Italic.ttf',
+            'Montserrat-BoldItalic.ttf': 'https://raw.githubusercontent.com/JulietaUla/Montserrat/master/fonts/ttf/Montserrat-BoldItalic.ttf'
+        }
+    },
+    'arial': {
+        'id': 'arial',
+        'name': 'Arial',
+        'family': 'Arial',
+        'prefix': 'Arial_',
+        'badge': 'System Font',
+        'description': 'Font sans-serif klasik universal yang kompatibel di semua platform.',
+        'files': {
+            'regular': 'C:/Windows/Fonts/arial.ttf',
+            'bold': 'C:/Windows/Fonts/arialbd.ttf',
+            'italic': 'C:/Windows/Fonts/ariali.ttf',
+            'bolditalic': 'C:/Windows/Fonts/arialbi.ttf'
+        },
+        'urls': {}
+    },
+    'times': {
+        'id': 'times',
+        'name': 'Times New Roman',
+        'family': 'Times New Roman',
+        'prefix': 'Times_',
+        'badge': 'System Font',
+        'description': 'Font serif formal klasik standar untuk surat dan dokumen legal.',
+        'files': {
+            'regular': 'C:/Windows/Fonts/times.ttf',
+            'bold': 'C:/Windows/Fonts/timesbd.ttf',
+            'italic': 'C:/Windows/Fonts/timesi.ttf',
+            'bolditalic': 'C:/Windows/Fonts/timesbi.ttf'
+        },
+        'urls': {}
+    },
+    'calibri': {
+        'id': 'calibri',
+        'name': 'Calibri',
+        'family': 'Calibri',
+        'prefix': 'Calibri_',
+        'badge': 'System Font',
+        'description': 'Font sans-serif modern Microsoft Office dengan sudut membulat.',
+        'files': {
+            'regular': 'C:/Windows/Fonts/calibri.ttf',
+            'bold': 'C:/Windows/Fonts/calibrib.ttf',
+            'italic': 'C:/Windows/Fonts/calibrii.ttf',
+            'bolditalic': 'C:/Windows/Fonts/calibriz.ttf'
+        },
+        'urls': {}
+    },
+    'segoeui': {
+        'id': 'segoeui',
+        'name': 'Segoe UI',
+        'family': 'Segoe UI',
+        'prefix': 'SegoeUI_',
+        'badge': 'System Font',
+        'description': 'Font antarmuka modern Windows Fluent Design dengan tipografi tajam.',
+        'files': {
+            'regular': 'C:/Windows/Fonts/segoeui.ttf',
+            'bold': 'C:/Windows/Fonts/segoeuib.ttf',
+            'italic': 'C:/Windows/Fonts/segoeuii.ttf',
+            'bolditalic': 'C:/Windows/Fonts/segoeuiz.ttf'
+        },
+        'urls': {}
+    }
 }
 
+ROBOTO_FONTS = FONTS_REGISTRY['roboto']['files']
+
+def get_target_font(font_key: Optional[str] = None):
+    raw_key = (font_key or 'roboto').strip().lower().replace('-', '').replace(' ', '').replace('_', '')
+    for reg_key, cfg in FONTS_REGISTRY.items():
+        clean_name = cfg['name'].lower().replace(' ', '').replace('-', '').replace('_', '')
+        clean_fam = cfg['family'].lower().replace(' ', '').replace('-', '').replace('_', '')
+        if raw_key == reg_key or raw_key == clean_name or raw_key == clean_fam:
+            return cfg
+    return FONTS_REGISTRY['roboto']
+
+def ensure_all_fonts():
+    for f_cfg in FONTS_REGISTRY.values():
+        for filename, url in f_cfg.get('urls', {}).items():
+            dest = os.path.join(FONTS_DIR, filename)
+            if not os.path.exists(dest) or os.path.getsize(dest) == 0:
+                try:
+                    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                    with urllib.request.urlopen(req, timeout=12) as resp:
+                        data = resp.read()
+                        with open(dest, 'wb') as f:
+                            f.write(data)
+                except Exception as e:
+                    print(f"Warning: Gagal mengunduh {filename}: {e}")
+
+ensure_all_fonts()
+
 def ensure_roboto_fonts():
-    urls = {
-        'Roboto-Regular.ttf': 'https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-Regular.ttf',
-        'Roboto-Bold.ttf': 'https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-Bold.ttf',
-        'Roboto-Italic.ttf': 'https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-Italic.ttf',
-        'Roboto-BoldItalic.ttf': 'https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-BoldItalic.ttf'
-    }
-    for filename, url in urls.items():
-        dest = os.path.join(FONTS_DIR, filename)
-        if not os.path.exists(dest) or os.path.getsize(dest) == 0:
-            try:
-                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-                with urllib.request.urlopen(req, timeout=10) as resp:
-                    data = resp.read()
-                    with open(dest, 'wb') as f:
-                        f.write(data)
-            except Exception as e:
-                print(f"Warning: Gagal mengunduh {filename}: {e}")
+    ensure_all_fonts()
 
-ensure_roboto_fonts()
-
-
-def convert_xml_arial_to_roboto(xml_bytes: bytes) -> tuple[bytes, int]:
+def convert_xml_to_font(xml_bytes: bytes, target_font: str = "roboto") -> tuple[bytes, int]:
+    font_cfg = get_target_font(target_font)
+    target_family = font_cfg['family']
     count = 0
     try:
         xml_str = xml_bytes.decode('utf-8')
     except UnicodeDecodeError:
         xml_str = xml_bytes.decode('latin-1', errors='replace')
 
+    font_attr_names = {
+        'family', 'font-family', 'fontfamily', 'font_family',
+        'face', 'typeface', 'font', 'font-name', 'fontname', 'font_name'
+    }
+
+    known_source_fonts = [
+        'ArialMT', 'Arial-BoldMT', 'Arial-ItalicMT', 'Arial-BoldItalicMT',
+        'Arial', 'Calibri', 'Times New Roman', 'TimesNewRoman', 'Times',
+        'Neo Sans Pro', 'Neo Sans', 'NeoSans', 'Segoe UI', 'SegoeUI',
+        'Helvetica', 'Tahoma', 'Verdana', 'Aptos', 'Cambria', 'Garamond'
+    ]
+
     try:
         root = ET.fromstring(xml_str)
         for elem in root.iter():
             for key, val in list(elem.attrib.items()):
-                if val and re.search(r'\barial\b', val, re.IGNORECASE):
-                    new_val = re.sub(r'\barial\b', 'Roboto', val, flags=re.IGNORECASE)
-                    elem.attrib[key] = new_val
-                    count += 1
-                elif val and 'Arial' in val:
-                    new_val = val.replace('ArialMT', 'Roboto-Regular').replace('Arial-BoldMT', 'Roboto-Bold').replace('Arial', 'Roboto')
-                    elem.attrib[key] = new_val
+                clean_key = key.lower().split('}')[-1]
+                if clean_key in font_attr_names:
+                    if val != target_family:
+                        elem.attrib[key] = target_family
+                        count += 1
+                elif val:
+                    modified = False
+                    for src in known_source_fonts:
+                        if src.lower() in val.lower():
+                            val = re.sub(rf'\b{re.escape(src)}\b', target_family, val, flags=re.IGNORECASE)
+                            modified = True
+                    if modified:
+                        elem.attrib[key] = val
+                        count += 1
+
+            if elem.text:
+                modified = False
+                new_text = elem.text
+                for src in known_source_fonts:
+                    if src.lower() in new_text.lower():
+                        new_text = re.sub(rf'\b{re.escape(src)}\b', target_family, new_text, flags=re.IGNORECASE)
+                        modified = True
+                if modified:
+                    elem.text = new_text
                     count += 1
 
-            if elem.text and re.search(r'\barial\b', elem.text, re.IGNORECASE):
-                elem.text = re.sub(r'\barial\b', 'Roboto', elem.text, flags=re.IGNORECASE)
-                count += 1
-
-            if elem.tail and re.search(r'\barial\b', elem.tail, re.IGNORECASE):
-                elem.tail = re.sub(r'\barial\b', 'Roboto', elem.tail, flags=re.IGNORECASE)
-                count += 1
+            if elem.tail:
+                modified = False
+                new_tail = elem.tail
+                for src in known_source_fonts:
+                    if src.lower() in new_tail.lower():
+                        new_tail = re.sub(rf'\b{re.escape(src)}\b', target_family, new_tail, flags=re.IGNORECASE)
+                        modified = True
+                if modified:
+                    elem.tail = new_tail
+                    count += 1
 
         out_stream = io.BytesIO()
         tree = ET.ElementTree(root)
@@ -98,19 +256,152 @@ def convert_xml_arial_to_roboto(xml_bytes: bytes) -> tuple[bytes, int]:
         converted_xml = out_stream.getvalue()
 
     except Exception:
-        converted_str, count = re.subn(r'(?i)\bArial\b', 'Roboto', xml_str)
+        pattern = r'(?i)\b(Arial|Calibri|Times New Roman|Neo Sans Pro|Segoe UI|Helvetica)\b'
+        converted_str, count = re.subn(pattern, target_family, xml_str)
         converted_xml = converted_str.encode('utf-8')
 
     converted_str = converted_xml.decode('utf-8', errors='replace')
-    extra_subs, extra_count = re.subn(r'(?i)\bArial\b', 'Roboto', converted_str)
+    extra_pattern = r'(?i)\b(Arial|Calibri|Times New Roman|Times|Neo Sans Pro)\b'
+    extra_subs, extra_count = re.subn(extra_pattern, target_family, converted_str)
     if extra_count > 0:
         converted_xml = extra_subs.encode('utf-8')
         count += extra_count
 
     return converted_xml, count
 
+def convert_xml_arial_to_roboto(xml_bytes: bytes) -> tuple[bytes, int]:
+    return convert_xml_to_font(xml_bytes, 'roboto')
 
-def convert_docx_arial_to_roboto(docx_bytes: bytes) -> tuple[bytes, int]:
+
+def convert_rtf_to_font(rtf_bytes: bytes, target_font: str = "roboto") -> tuple[bytes, int]:
+    font_cfg = get_target_font(target_font)
+    target_family = font_cfg['family']
+    count = 0
+
+    encoding_used = 'latin-1'
+    try:
+        rtf_str = rtf_bytes.decode('utf-8')
+        if any(ord(c) > 0xFF for c in rtf_str):
+            encoding_used = 'utf-8'
+        else:
+            rtf_str = rtf_bytes.decode('latin-1')
+            encoding_used = 'latin-1'
+    except UnicodeDecodeError:
+        try:
+            rtf_str = rtf_bytes.decode('latin-1')
+            encoding_used = 'latin-1'
+        except UnicodeDecodeError:
+            rtf_str = rtf_bytes.decode('cp1252', errors='replace')
+            encoding_used = 'cp1252'
+
+    if not rtf_str.strip().startswith('{\\rtf'):
+        raise ValueError("File bukan dokumen RTF yang valid.")
+
+    font_decl_pattern = re.compile(
+        r'(\\f\d+[^;{]*?)\s+([^;{]+)\s*;',
+        re.IGNORECASE
+    )
+
+    def replace_in_fonttbl(m):
+        nonlocal count
+        original_name = m.group(2)
+        lower = original_name.lower()
+        if 'bold' in lower and 'italic' in lower:
+            new_name = f"{target_family} Bold Italic"
+        elif 'boldmt' in lower or 'bold' in lower:
+            new_name = f"{target_family} Bold"
+        elif 'italic' in lower or 'oblique' in lower:
+            new_name = f"{target_family} Italic"
+        elif 'condensed' in lower or 'narrow' in lower:
+            new_name = f"{target_family} Condensed"
+        else:
+            new_name = target_family
+        count += 1
+        return f"{m.group(1)} {new_name};"
+
+    fonttbl_pattern = re.compile(r'(\{\\fonttbl)(.*?)(\})', re.DOTALL)
+
+    def process_fonttbl_block(m):
+        prefix = m.group(1)
+        body = font_decl_pattern.sub(replace_in_fonttbl, m.group(2))
+        suffix = m.group(3)
+        return prefix + body + suffix
+
+    rtf_str = fonttbl_pattern.sub(process_fonttbl_block, rtf_str)
+
+    src_pattern = r'\b(Arial|Calibri|Times New Roman|Segoe UI|Helvetica)\b'
+    rtf_str, extra_subs = re.subn(src_pattern, target_family, rtf_str, flags=re.IGNORECASE)
+    count += extra_subs
+
+    result_bytes = rtf_str.encode(encoding_used, errors='replace')
+    return result_bytes, count
+
+def convert_rtf_arial_to_roboto(rtf_bytes: bytes) -> tuple[bytes, int]:
+    return convert_rtf_to_font(rtf_bytes, 'roboto')
+
+
+def convert_doc_to_font(doc_bytes: bytes, target_font: str = "roboto") -> tuple[bytes, int]:
+    for encoding in ('utf-8', 'latin-1', 'cp1252'):
+        try:
+            peek = doc_bytes[:20].decode(encoding)
+            if peek.strip().startswith('{\\rtf'):
+                return convert_rtf_to_font(doc_bytes, target_font)
+            break
+        except UnicodeDecodeError:
+            continue
+
+    try:
+        converted_bytes, count = convert_docx_to_font(doc_bytes, target_font)
+        return converted_bytes, count
+    except Exception:
+        pass
+
+    font_cfg = get_target_font(target_font)
+    target_family = font_cfg['family']
+    count = 0
+
+    target_5 = target_family[:5].encode('latin-1', errors='replace').ljust(5)
+
+    arial_variants = [
+        (b'Arial-BoldItalicMT', (target_family + '-BoldItalic').encode('latin-1', errors='replace').ljust(18)[:18]),
+        (b'Arial-BoldMT',       (target_family + '-Bold').encode('latin-1', errors='replace').ljust(12)[:12]),
+        (b'Arial-ItalicMT',     (target_family + '-Italic').encode('latin-1', errors='replace').ljust(14)[:14]),
+        (b'ArialMT',            target_family.encode('latin-1', errors='replace').ljust(7)[:7]),
+        (b'Arial Unicode MS',   target_family.encode('latin-1', errors='replace').ljust(16)[:16]),
+        (b'Arial Narrow',       (target_family + ' Cond.').encode('latin-1', errors='replace').ljust(12)[:12]),
+        (b'Arial Bold',         (target_family + ' Bold').encode('latin-1', errors='replace').ljust(10)[:10]),
+        (b'Arial Italic',       (target_family + ' Italic').encode('latin-1', errors='replace').ljust(12)[:12]),
+    ]
+
+    result = doc_bytes
+    for old, new in arial_variants:
+        if len(old) != len(new):
+            continue
+        n = result.count(old)
+        if n > 0:
+            result = result.replace(old, new)
+            count += n
+
+    arial_bin_pat = re.compile(b'(?<=\x00)Arial(?=[\x00\x20])', re.IGNORECASE)
+    result, n = arial_bin_pat.subn(target_5, result)
+    count += n
+
+    arial_wide = 'Arial'.encode('utf-16-le')
+    target_wide = target_5.decode('latin-1', errors='replace').encode('utf-16-le')
+    n_wide = result.count(arial_wide)
+    if n_wide > 0:
+        result = result.replace(arial_wide, target_wide)
+        count += n_wide
+
+    return result, count
+
+def convert_doc_arial_to_roboto(doc_bytes: bytes) -> tuple[bytes, int]:
+    return convert_doc_to_font(doc_bytes, 'roboto')
+
+
+def convert_docx_to_font(docx_bytes: bytes, target_font: str = "roboto") -> tuple[bytes, int]:
+    font_cfg = get_target_font(target_font)
+    target_family = font_cfg['family']
     doc = docx.Document(io.BytesIO(docx_bytes))
     count = 0
 
@@ -118,8 +409,8 @@ def convert_docx_arial_to_roboto(docx_bytes: bytes) -> tuple[bytes, int]:
         nonlocal count
         changed = False
 
-        if run.font.name and 'arial' in run.font.name.lower():
-            run.font.name = 'Roboto'
+        if run.font.name != target_family:
+            run.font.name = target_family
             changed = True
 
         rPr = run._r.get_or_add_rPr()
@@ -127,25 +418,26 @@ def convert_docx_arial_to_roboto(docx_bytes: bytes) -> tuple[bytes, int]:
         if rFonts is not None:
             for attr in ['ascii', 'hAnsi', 'cs', 'eastAsia']:
                 val = rFonts.get(qn(f'w:{attr}'))
-                if val and 'arial' in val.lower():
-                    rFonts.set(qn(f'w:{attr}'), 'Roboto')
+                if val != target_family:
+                    rFonts.set(qn(f'w:{attr}'), target_family)
                     changed = True
         else:
-            if changed or (run.font.name == 'Roboto'):
-                rFonts_elem = docx.oxml.OxmlElement('w:rFonts')
-                rFonts_elem.set(qn('w:ascii'), 'Roboto')
-                rFonts_elem.set(qn('w:hAnsi'), 'Roboto')
-                rFonts_elem.set(qn('w:cs'), 'Roboto')
-                rPr.append(rFonts_elem)
+            rFonts_elem = docx.oxml.OxmlElement('w:rFonts')
+            rFonts_elem.set(qn('w:ascii'), target_family)
+            rFonts_elem.set(qn('w:hAnsi'), target_family)
+            rFonts_elem.set(qn('w:cs'), target_family)
+            rPr.append(rFonts_elem)
+            changed = True
 
         if changed:
             count += 1
 
     for style in doc.styles:
         try:
-            if hasattr(style, 'font') and style.font.name and 'arial' in style.font.name.lower():
-                style.font.name = 'Roboto'
-                count += 1
+            if hasattr(style, 'font') and style.font is not None:
+                if style.font.name != target_family:
+                    style.font.name = target_family
+                    count += 1
         except Exception:
             pass
 
@@ -188,6 +480,9 @@ def convert_docx_arial_to_roboto(docx_bytes: bytes) -> tuple[bytes, int]:
     out_stream = io.BytesIO()
     doc.save(out_stream)
     return out_stream.getvalue(), count
+
+def convert_docx_arial_to_roboto(docx_bytes: bytes) -> tuple[bytes, int]:
+    return convert_docx_to_font(docx_bytes, 'roboto')
 
 
 ROUND_BULLETS = {
@@ -307,11 +602,24 @@ def _clear_font_dict(obj_str: str) -> str:
         return obj_str[:dict_start] + '<<>>' + obj_str[i:]
     return obj_str
 
-def convert_pdf_all_to_roboto(pdf_bytes: bytes) -> tuple[bytes, int]:
-    reg_path = ROBOTO_FONTS['regular']
-    bold_path = ROBOTO_FONTS['bold']
-    italic_path = ROBOTO_FONTS['italic']
-    bolditalic_path = ROBOTO_FONTS['bolditalic']
+def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[bytes, int]:
+    font_cfg = get_target_font(target_font)
+    family_clean = font_cfg['family'].replace(' ', '')
+    fallback_cfg = FONTS_REGISTRY['roboto']
+
+    reg_path = font_cfg['files'].get('regular', '')
+    bold_path = font_cfg['files'].get('bold', '')
+    italic_path = font_cfg['files'].get('italic', '')
+    bolditalic_path = font_cfg['files'].get('bolditalic', '')
+
+    if not (reg_path and os.path.exists(reg_path)):
+        reg_path = fallback_cfg['files']['regular']
+    if not (bold_path and os.path.exists(bold_path)):
+        bold_path = fallback_cfg['files']['bold']
+    if not (italic_path and os.path.exists(italic_path)):
+        italic_path = fallback_cfg['files']['italic']
+    if not (bolditalic_path and os.path.exists(bolditalic_path)):
+        bolditalic_path = fallback_cfg['files']['bolditalic']
 
     font_cache = {}
     def get_font_obj(path):
@@ -697,13 +1005,13 @@ def convert_pdf_all_to_roboto(pdf_bytes: bytes) -> tuple[bytes, int]:
                     is_italic = bool(flags & 2) or 'italic' in font_str or 'oblique' in font_str
 
                     if is_bold and is_italic and os.path.exists(bolditalic_path):
-                        fn, ff = 'Roboto-BoldItalic', bolditalic_path
+                        fn, ff = f'{family_clean}-BoldItalic', bolditalic_path
                     elif is_bold and os.path.exists(bold_path):
-                        fn, ff = 'Roboto-Bold', bold_path
+                        fn, ff = f'{family_clean}-Bold', bold_path
                     elif is_italic and os.path.exists(italic_path):
-                        fn, ff = 'Roboto-Italic', italic_path
+                        fn, ff = f'{family_clean}-Italic', italic_path
                     elif os.path.exists(reg_path):
-                        fn, ff = 'Roboto-Regular', reg_path
+                        fn, ff = f'{family_clean}-Regular', reg_path
                     else:
                         fn, ff = 'helv', None
 
@@ -869,6 +1177,9 @@ def convert_pdf_all_to_roboto(pdf_bytes: bytes) -> tuple[bytes, int]:
     doc.close()
     return out_pdf, total_spans_converted
 
+def convert_pdf_all_to_roboto(pdf_bytes: bytes) -> tuple[bytes, int]:
+    return convert_pdf_to_font(pdf_bytes, 'roboto')
+
 
 def load_dataset(file_bytes: bytes, filename: str) -> pd.DataFrame:
     ext = filename.lower().split('.')[-1]
@@ -1000,7 +1311,11 @@ def generate_batch_pdf_zip(template_bytes: bytes, df: pd.DataFrame) -> tuple[io.
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse(request=request, name="index.html")
+    response = templates.TemplateResponse(request=request, name="index.html")
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -1015,29 +1330,51 @@ async def favicon():
     return Response(content=svg_icon, media_type="image/svg+xml")
 
 
-def process_single_file_content(file_bytes: bytes, filename: str) -> tuple[bytes, str, int]:
+def process_single_file_content(file_bytes: bytes, filename: str, target_font: str = "roboto") -> tuple[bytes, str, int]:
     ext = filename.lower().split('.')[-1]
     if ext == 'xml':
-        converted_bytes, replacements = convert_xml_arial_to_roboto(file_bytes)
+        converted_bytes, replacements = convert_xml_to_font(file_bytes, target_font)
         media_type = "application/xml"
     elif ext == 'docx':
-        converted_bytes, replacements = convert_docx_arial_to_roboto(file_bytes)
+        converted_bytes, replacements = convert_docx_to_font(file_bytes, target_font)
         media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     elif ext == 'pdf':
-        converted_bytes, replacements = convert_pdf_all_to_roboto(file_bytes)
+        converted_bytes, replacements = convert_pdf_to_font(file_bytes, target_font)
         media_type = "application/pdf"
+    elif ext == 'rtf':
+        converted_bytes, replacements = convert_rtf_to_font(file_bytes, target_font)
+        media_type = "application/rtf"
+    elif ext == 'doc':
+        converted_bytes, replacements = convert_doc_to_font(file_bytes, target_font)
+        media_type = "application/msword"
     else:
         raise HTTPException(
             status_code=400,
-            detail=f"Tipe file '{filename}' tidak didukung. Format yang didukung: .xml, .docx, .pdf, atau .zip."
+            detail=f"Tipe file '{filename}' tidak didukung. Format yang didukung: .xml, .docx, .doc, .pdf, .rtf, atau .zip."
         )
     return converted_bytes, media_type, replacements
+
+
+@app.get("/api/fonts")
+async def get_fonts_list():
+    font_list = []
+    for k, v in FONTS_REGISTRY.items():
+        font_list.append({
+            "id": v["id"],
+            "name": v["name"],
+            "family": v["family"],
+            "prefix": v["prefix"],
+            "badge": v["badge"],
+            "description": v["description"]
+        })
+    return {"fonts": font_list, "default": "roboto"}
 
 
 @app.post("/api/convert-font")
 async def convert_font_endpoint(
     file: Optional[UploadFile] = File(None),
-    files: Optional[list[UploadFile]] = File(None)
+    files: Optional[list[UploadFile]] = File(None),
+    target_font: Optional[str] = Form("roboto")
 ):
     upload_list: list[UploadFile] = []
     if files:
@@ -1048,6 +1385,9 @@ async def convert_font_endpoint(
     if not upload_list:
         raise HTTPException(status_code=400, detail="Tidak ada file yang diunggah.")
 
+    selected_font = target_font or "roboto"
+    font_cfg = get_target_font(selected_font)
+    prefix = font_cfg['prefix']
 
     if len(upload_list) == 1 and not (upload_list[0].filename or "").lower().endswith('.zip'):
         single_file = upload_list[0]
@@ -1056,8 +1396,8 @@ async def convert_font_endpoint(
         if not file_bytes:
             raise HTTPException(status_code=400, detail="File kosong.")
 
-        converted_bytes, media_type, replacements = process_single_file_content(file_bytes, filename)
-        out_name = f"Roboto_{filename}"
+        converted_bytes, media_type, replacements = process_single_file_content(file_bytes, filename, selected_font)
+        out_name = f"{prefix}{filename}"
 
         return StreamingResponse(
             io.BytesIO(converted_bytes),
@@ -1065,10 +1405,10 @@ async def convert_font_endpoint(
             headers={
                 "Content-Disposition": f'attachment; filename="{out_name}"',
                 "X-Replacements-Count": str(replacements),
-                "Access-Control-Expose-Headers": "Content-Disposition, X-Replacements-Count"
+                "X-Target-Font": font_cfg["name"],
+                "Access-Control-Expose-Headers": "Content-Disposition, X-Replacements-Count, X-Target-Font"
             }
         )
-
 
     out_zip_buffer = io.BytesIO()
     total_converted = 0
@@ -1103,35 +1443,35 @@ async def convert_font_endpoint(
                             if item.is_dir() or item.filename.startswith('__MACOSX') or item.filename.split('/')[-1].startswith('.'):
                                 continue
                             item_ext = item.filename.lower().split('.')[-1]
-                            if item_ext in ['xml', 'docx', 'pdf']:
+                            if item_ext in ['xml', 'docx', 'doc', 'pdf', 'rtf']:
                                 raw_item_bytes = in_zf.read(item)
-                                c_bytes, _, reps = process_single_file_content(raw_item_bytes, item.filename)
+                                c_bytes, _, reps = process_single_file_content(raw_item_bytes, item.filename, selected_font)
                                 parts = item.filename.split('/')
-                                parts[-1] = f"Roboto_{parts[-1]}"
+                                parts[-1] = f"{prefix}{parts[-1]}"
                                 zip_entry_name = "/".join(parts)
                                 zf.writestr(zip_entry_name, c_bytes)
                                 total_converted += 1
                                 total_replacements += reps
                 except Exception as e:
                     raise HTTPException(status_code=400, detail=f"Gagal memproses file ZIP '{fname}': {str(e)}")
-            elif f_ext in ['xml', 'docx', 'pdf']:
-                c_bytes, _, reps = process_single_file_content(fbytes, fname)
-                entry_name = get_unique_zip_entry(f"Roboto_{fname}")
+            elif f_ext in ['xml', 'docx', 'doc', 'pdf', 'rtf']:
+                c_bytes, _, reps = process_single_file_content(fbytes, fname, selected_font)
+                entry_name = get_unique_zip_entry(f"{prefix}{fname}")
                 zf.writestr(entry_name, c_bytes)
                 total_converted += 1
                 total_replacements += reps
 
     if total_converted == 0:
-        raise HTTPException(status_code=400, detail="Tidak ditemukan file PDF, DOCX, atau XML yang valid untuk dikonversi.")
+        raise HTTPException(status_code=400, detail="Tidak ditemukan file PDF, DOCX, DOC, XML, atau RTF yang valid untuk dikonversi.")
 
     out_zip_buffer.seek(0)
 
     if len(upload_list) == 1 and (upload_list[0].filename or "").lower().endswith('.zip'):
         raw_name = upload_list[0].filename
         base_zip = os.path.splitext(raw_name)[0]
-        out_zip_name = f"Roboto_{base_zip}.zip"
+        out_zip_name = f"{prefix}{base_zip}.zip"
     else:
-        out_zip_name = f"Roboto_Converted_{total_converted}_Files.zip"
+        out_zip_name = f"{prefix}Converted_{total_converted}_Files.zip"
 
     return StreamingResponse(
         out_zip_buffer,
@@ -1140,7 +1480,8 @@ async def convert_font_endpoint(
             "Content-Disposition": f'attachment; filename="{out_zip_name}"',
             "X-Converted-Count": str(total_converted),
             "X-Replacements-Count": str(total_replacements),
-            "Access-Control-Expose-Headers": "Content-Disposition, X-Converted-Count, X-Replacements-Count"
+            "X-Target-Font": font_cfg["name"],
+            "Access-Control-Expose-Headers": "Content-Disposition, X-Converted-Count, X-Replacements-Count, X-Target-Font"
         }
     )
 

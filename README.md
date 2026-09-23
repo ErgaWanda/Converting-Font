@@ -8,6 +8,8 @@
 
 **Tools Converting Font** adalah portal otomatisasi dokumen tingkat lanjut yang dirancang khusus untuk standarisasi tipografi dan personalisasi dokumen massal. Aplikasi ini menyediakan mesin konversi font presisi tinggi (mengubah font dokumen seperti Arial, Helvetica, dan Times Roman menjadi **Roboto resmi Google**) untuk format **PDF, DOCX, dan XML**, serta dilengkapi fitur **Batch Mapping Merger** untuk menggabungkan master template dengan dataset nasabah (CSV/Excel).
 
+> 📖 **Pelajari Cara Kerja & Arsitektur Lengkap**: Lihat dokumen [CARA_KERJA.md](file:///c:/Project/Converting%20Font/CARA_KERJA.md) untuk penjelasan teknis mendalam dan flowchart lengkap pemrosesan dokumen.
+
 ---
 
 ## 🌟 Fitur Utama
