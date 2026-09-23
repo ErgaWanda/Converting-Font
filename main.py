@@ -397,23 +397,6 @@ def convert_doc_to_font(doc_bytes: bytes, target_font: str = "roboto") -> tuple[
         result = result.replace(arial_wide, target_wide)
         count += n_wide
 
-    neo_variants_bin = [
-        b'NeoSansPro-BoldItalic',
-        b'NeoSansPro-Bold',
-        b'NeoSansPro-Medium',
-        b'NeoSansPro-Regular',
-        b'NeoSansPro',
-        b'Neo Sans Pro',
-        b'Neo Sans',
-        b'NeoSans',
-    ]
-    for neo_src in neo_variants_bin:
-        neo_repl = target_family.encode('latin-1', errors='replace').ljust(len(neo_src))[:len(neo_src)]
-        n = result.count(neo_src)
-        if n > 0:
-            result = result.replace(neo_src, neo_repl)
-            count += n
-
     return result, count
 
 def convert_doc_arial_to_roboto(doc_bytes: bytes) -> tuple[bytes, int]:
