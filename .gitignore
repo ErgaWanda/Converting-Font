@@ -112,3 +112,10 @@ final_*.png
 converted_*/
 output/
 outputs/
+
+# ==========================================
+# SIT / Bug Testing & Legacy Applications
+# ==========================================
+bug/
+ConvertingFontWinForms/
+scratch/
