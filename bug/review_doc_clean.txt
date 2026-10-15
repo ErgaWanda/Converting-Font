@@ -1,0 +1,128 @@
+SIT-001 | ROPLTR01 (Sample 1) | Paging | Policy: 4999999126_1 | QA: Shafira
+   Issue   : Sample 1 pada Result RDS hanya 1 halaman , formulir tidak ter-attach
+   Expected: Terdapat 2 halaman, 
+------------------------------------------------------------
+SIT-002 | INVCLMLT (Sample 2) | Wording | Policy: AK9999999960_2 | QA: Kalisa
+   Issue   : kurang kurung tutup pada "Nama Peserta (Tertanggung)
+   Expected: harusnya ada kurung tutup
+------------------------------------------------------------
+SIT-003 | INVCLMLT (Sample 4) | Wording | Policy: AK9999999960_2 | QA: Kalisa
+   Issue   : 1. kurang kurung tutup pada "Nama Peserta (Tertanggung) 2. Format tanggal berbeda dari Template sample, format 02/08/2025 harusnya 02 Agustus 2025
+   Expected: 1. harusnya ada kurung tutup 2. Format Tanggal Harusnya '02 Agustus 2025'
+------------------------------------------------------------
+SIT-004 | iBillingReminder (Sample 6) | Wording | Policy: HS99999999165_6 | QA: Gita
+   Issue   : Wording pada letter ".....perlu Anda bayarkan"
+   Expected: Wording pada letter seharusnya "...akan didebet"
+------------------------------------------------------------
+SIT-005 | iAutoRenewal | Font | Policy: - TK99999999161_1
+- FP99999999161_2
+- TK99999999161_3
+- FP99999999161_4 | QA: Gita
+   Issue   : Terdetect font Helvetica
+   Expected: Semua font Roboto
+------------------------------------------------------------
+SIT-006 | LAPSE03 | Wording | Policy: 4999999069_1 | QA: Kalisa
+   Issue   : Nomor Telp tidak sesuai, di tulis 1-500-AVA (282)
+   Expected: Seharusnya di tulis 1-500-282
+------------------------------------------------------------
+SIT-007 | POLSCH31 | Layout | Policy: 41214857
+41308564 | QA: Rony
+   Issue   : Untuk Certificate RDS banyak yang tidak rata kanan
+   Expected: Certificate secara layout sudah OK, rata kanan dan rapih
+------------------------------------------------------------
+SIT-008 | iAutoRenewal (Sample 4) | Signature | Policy: FP99999999161_4 | QA: Gita
+   Issue   : Tanda tangan tidak sesuai dan revisi nama penanda tangan pada sample
+   Expected: Tanda tangan menggunakan tanda tangan dok Sharin dan revisi nama menggunakan dok Sharin
+------------------------------------------------------------
+SIT-009 | RIPLAY_CREDITLIFE Sample 1 | Wording | Policy:  | QA: Shafira
+   Issue   : Wording (terlampir)
+   Expected: 
+------------------------------------------------------------
+SIT-010 | LTRACC21 | Layout | Policy:  | QA: Rangga
+   Issue   : halaman  1 dan halaman 3 : space baris selanjutnya untuk kalimat yang sama terlalu rapat,  dan kalimat tidak rata kanan halaman 4 : spasi pada awal baris sesuai dengan tango sample
+   Expected: 
+------------------------------------------------------------
+SIT-011 | RIPLAY_CREDITLIFE Sample 2 | Wording | Policy:  | QA: Shafira
+   Issue   : Wording (terlampir)
+   Expected: 
+------------------------------------------------------------
+SIT-012 | RIPLAY_CREDITLIFE Sample 3 | Wording | Policy:  | QA: Shafira
+   Issue   : Wording (terlampir)
+   Expected: 
+------------------------------------------------------------
+SIT-013 | RIPLAY_CREDITLIFE (Sample 8) | Wording | Policy: 99999908 | QA: Gita
+   Issue   : Wording tidak sesuai
+   Expected: Wording sesuai
+------------------------------------------------------------
+SIT-014 | RIPLAY_CREDITLIFE (Sample 9) | Wording | Policy: 99999909 | QA: Gita
+   Issue   : Wording tidak sesuai
+   Expected: Wording sesuai
+------------------------------------------------------------
+SIT-015 | RIPLAY_CREDITLIFE (Sample 10) | Wording | Policy: 99999910 | QA: Gita
+   Issue   : Wording tidak sesuai
+   Expected: Wording sesuai
+------------------------------------------------------------
+SIT-016 | RIPLAY_CREDITLIFE (Sample 11) | Wording | Policy: 99999911 | QA: Rony
+   Issue   : Wording tidak di BOLD contoh :  - Layanan Pengaduan - Penyelesaian Perselisihan - Pusat Informasi dan Layanan pengaduan
+   Expected: Wording sesuai
+------------------------------------------------------------
+SIT-017 | RIPLAY_CREDITLIFE (Sample 13) | Wording | Policy: 99999913 | QA: Rony
+   Issue   : Wording tidak di BOLD contoh :  - Layanan Pengaduan - Penyelesaian Perselisihan - Pusat Informasi dan Layanan pengaduan
+   Expected: Wording sesuai
+------------------------------------------------------------
+SIT-018 | RIPLAY_CREDITLIFE Sample 5 | Wording | Policy:  | QA: Shafira
+   Issue   : Wording (terlampir)
+   Expected: 
+------------------------------------------------------------
+SIT-019 | Finatra_Epolicy | Wording | Policy:  | QA: Humai
+   Issue   : Wording (terlampir)
+   Expected: Semua Font Roboto
+------------------------------------------------------------
+SIT-020 | PHEXPRY | Wording | Policy:  | QA: Rony
+   Issue   : Wording tidak berwarna biru (seperti link email)
+   Expected: Wording harus sesuai
+------------------------------------------------------------
+SIT-021 | PHOLIDY | Wording | Policy:  | QA: Rony
+   Issue   : Tanggal Cuti Premi tidak sesuai seharusnya menggunakn tagging xml <tranDate>
+   Expected: Seharusnya menggunakan tagging xml <tranDate>
+------------------------------------------------------------
+SIT-022 |  |  | Policy:  | QA: 
+   Issue   : 
+   Expected: 
+------------------------------------------------------------
+SIT-023 |  |  | Policy:  | QA: 
+   Issue   : 
+   Expected: 
+------------------------------------------------------------
+SIT-024 |  |  | Policy:  | QA: 
+   Issue   : 
+   Expected: 
+------------------------------------------------------------
+SIT-025 |  |  | Policy:  | QA: 
+   Issue   : 
+   Expected: 
+------------------------------------------------------------
+SIT-026 |  |  | Policy:  | QA: 
+   Issue   : 
+   Expected: 
+------------------------------------------------------------
+SIT-027 |  |  | Policy:  | QA: 
+   Issue   : 
+   Expected: 
+------------------------------------------------------------
+SIT-028 |  |  | Policy:  | QA: 
+   Issue   : 
+   Expected: 
+------------------------------------------------------------
+SIT-029 |  |  | Policy:  | QA: 
+   Issue   : 
+   Expected: 
+------------------------------------------------------------
+SIT-030 |  |  | Policy:  | QA: 
+   Issue   : 
+   Expected: 
+------------------------------------------------------------
+SIT-031 |  |  | Policy:  | QA: 
+   Issue   : 
+   Expected: 
+------------------------------------------------------------

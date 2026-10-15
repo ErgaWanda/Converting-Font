@@ -1,0 +1,141 @@
+SIT-001 | InterimCoverageCL | Functionality | Policy:  | QA: Kalisa
+   Issue   : Email to dan Email CC berbeda dengan yang ada pada XML  terkirim hanya ke 1 Email saja   pada XML tercatat :  <sentTo>kalisasuhardi@gmail.com</sentTo> <sentCc>rozi.sepriadi@astralife.co.id,kalisa.suhardi@astralife.co.id</sentCc>  tp pada email terkirim hanya ke emailrozi.sepriadi@astralife.co.id 
+   Expected: Email terkirim sesuai dengan emang yang terdaftar pada XML
+------------------------------------------------------------
+SIT-002 | BILLNOT02 | Functionality | Policy:  | QA: Rony
+   Issue   : XML Tidak terproses
+   Expected: Seharusnya XML tetap diproses
+------------------------------------------------------------
+SIT-003 | NOTOWC10  | Layout | Policy:  | QA: Rangga
+   Issue   : - Terima kasih atas kepercayaan yang telah Anda berikan kepada kami, PT ASURANSI JIWA ASTRA, sebagai penyedia layanan asuransi jiwa bagi Anda dan keluarga.→ posisi wording naik dari yang sebelumnya - alamat bergabung dengan baris nama perusahaan
+   Expected: - Terima kasih atas kepercayaan yang telah Anda berikan kepada kami, PT ASURANSI JIWA ASTRA, sebagai penyedia layanan asuransi jiwa bagi Anda dan keluarga.→ posisi wording naik dari yang sebelumnya - alamat tidak bergabung dengan baris nama perusahaan
+------------------------------------------------------------
+SIT-004 | PREAMNA3 | Functionality | Policy:  | QA: Rangga
+   Issue   : File tidak terbentuk di filenet,karna contract_no tidak terbentuk di meta data  (null)  dan untuk wording di pdf bergeser dari wording tamplate 
+   Expected: no polis terbentuk pada file net dan juga pada meta data
+------------------------------------------------------------
+SIT-005 | YGEXPRCP | Functionality | Policy:  | QA: Shafira
+   Issue   : - field 'Template_id' masih ada - field 'path output' masih null
+   Expected: - harusnya 'Template_name' - harus sesuai dengan meta data request 
+------------------------------------------------------------
+SIT-006 | YGCLPRCP-RC | Functionality | Policy:  | QA: Shafira
+   Issue   : - field 'Template_id' masih ada - field 'path output' masih null - tidak terima email
+   Expected: - harusnya 'Template_name' - harus sesuai dengan meta data request 
+------------------------------------------------------------
+SIT-007 | NOTEDR01 | Wording | Policy:  | QA: Rangga
+   Issue   : PDF tidak menampilkan "pemilikRekening", sedangkan pada XML field tersebut terisi 
+   Expected: PDF menampilkan "pemilikRekening", sedangkan pada XML field tersebut terisi 
+------------------------------------------------------------
+SIT-008 | NFL01 / Template Lain | Functionality | Policy:  | QA: Rony
+Gita
+   Issue   : Beberapa kali testing drop XML, RDS mengirimkan file berulang bahkan ada yang sampai 7x dengan file yang sama persis untuk satu request
+   Expected: Transaksi berjalan normal
+------------------------------------------------------------
+SIT-009 | YGCLPRCP-FP | Functionality | Policy:  | QA: Shafira
+   Issue   : - field 'Template_id' masih ada - field 'path output' masih null - tidak terima email
+   Expected: - harusnya 'Template_name' - harus sesuai dengan meta data request 
+------------------------------------------------------------
+SIT-010 | ChangeComponent | Functionality | Policy:  | QA: Gita
+   Issue   : path_output terisi
+   Expected: seharusnya path_output tidak terisi
+------------------------------------------------------------
+SIT-011 | ChangeComponent | Wording | Policy:  | QA: Gita
+   Issue   : beberapa wording pada email belum sesuai (detail pada evidence): -  Bapak/Ibu seharusnya sesuai salutation -  Terdapat wording yang seharusnya dibuat pada baris baru -  Terdapat koma yang double - Terdapat wording yang seharusnya italic
+   Expected: seharusnya wording pada email sesuai
+------------------------------------------------------------
+SIT-012 | iPayorchange | Layout | Policy:   | QA: Humai
+   Issue   : Beberapa wording pada email belum sesuai (detail pada evidence): - Wording Polis Lama seharusnya Polis Baru - Terdapat wording yang seharusnya dibuat pada baris baru - Terdapat koma yang double - Terdapat titik yang kurang - Terdapat wording yang seharusnya italic
+   Expected: Seharusnya wording pada email sesuai
+------------------------------------------------------------
+SIT-013 | iPreMaturity | Wording | Policy:  | QA: Gita
+   Issue   : beberapa wording pada email belum sesuai (detail pada evidence)
+   Expected: seharusnya wording pada email sesuai
+------------------------------------------------------------
+SIT-014 | RPU | Wording | Policy:  | QA: Gita
+   Issue   : beberapa wording pada email belum sesuai (detail pada evidence)
+   Expected: seharusnya wording pada email sesuai
+------------------------------------------------------------
+SIT-015 | iExpiry | Wording | Policy:   | QA: Humai
+   Issue   : Beberapa wording pada email belum sesuai (detail pada evidence): - Terdapat koma yang double - Terdapat wording yang seharusnya italic - Terdapat wording yang seharusnya dibuat pada baris baru
+   Expected: Seharusnya wording pada email sesuai
+------------------------------------------------------------
+SIT-016 | iFullsur2 | Wording | Policy:   | QA: Humai
+   Issue   : Beberapa wording pada email belum sesuai (detail pada evidence): - Terdapat koma yang double - Terdapat wording yang seharusnya italic - Terdapat wording yang seharusnya dibuat pada baris baru
+   Expected: Seharusnya wording pada email sesuai
+------------------------------------------------------------
+SIT-017 | iAPLRepayment | Wording | Policy:   | QA: Humai
+   Issue   : Beberapa wording pada email belum sesuai (detail pada evidence): - Terdapat wording yang seharusnya dibuat pada baris baru - Terdapat wording yang seharusnya italic - Email tidak clickable link
+   Expected: Seharusnya wording pada email sesuai
+------------------------------------------------------------
+SIT-018 | RPU | Wording | Policy:  | QA: Gita
+   Issue   : - terdapat wording yang sehaursnya italic - terdapat kurang layout (garis putus-putus) pada table
+   Expected: seharusnya template sesuai
+------------------------------------------------------------
+SIT-019 | iAPL_yearly_report | Wording | Policy:   | QA: Humai
+   Issue   : Beberapa wording pada email belum sesuai (detail pada evidence): - Terdapat wording yang seharusnya dibuat pada baris baru - Email tidak clickable link - Terdapat koma yang double - Terdapat wording yang seharusnya italic  Beberapa wording pada file pdf belum sesuai (detail pada evidence): - Kurang kata Anda - Format rupiah masih belum sesuai
+   Expected: Seharusnya wording pada email sesuai
+------------------------------------------------------------
+SIT-020 | iAPL3 | Wording | Policy:   | QA: Humai
+   Issue   : Beberapa wording pada email belum sesuai (detail pada evidence): - Terdapat wording yang seharusnya dibuat pada baris baru - Email tidak clickable link - Terdapat koma yang double - Terdapat wording yang seharusnya italic
+   Expected: Seharusnya wording pada email sesuai
+------------------------------------------------------------
+SIT-021 | iReinstatement | Wording | Policy:  | QA: Gita
+   Issue   : wording email untuk kondisi isEndorsement = N belum sesuai
+   Expected: wording email untuk kondisi isEndorsement = N sesuai
+------------------------------------------------------------
+SIT-022 | iAPL2 | Wording | Policy:   | QA: Humai
+   Issue   : Beberapa wording pada email belum sesuai (detail pada evidence): - Terdapat wording yang seharusnya dibuat pada baris baru - Email tidak clickable link - Terdapat koma yang double - Terdapat wording yang seharusnya italic
+   Expected: Seharusnya wording pada email sesuai
+------------------------------------------------------------
+SIT-023 | iReinstatement | Wording | Policy:  | QA: Gita
+   Issue   : wording email untuk kondisi isEndorsement = Y belum sesuai
+   Expected: wording email untuk kondisi isEndorsement = Y sesuai
+------------------------------------------------------------
+SIT-024 | iAPL1 | Wording | Policy:   | QA: Humai
+   Issue   : Beberapa wording pada email belum sesuai (detail pada evidence): - Terdapat wording yang seharusnya dibuat pada baris baru - Email tidak clickable link - Terdapat koma yang double - Terdapat wording yang seharusnya italic
+   Expected: Seharusnya wording pada email sesuai
+------------------------------------------------------------
+SIT-025 | iAgentMovement | Wording | Policy:   | QA: Humai
+   Issue   : Beberapa wording pada email belum sesuai (detail pada evidence): - Terdapat wording yang seharusnya dibuat pada baris baru - Email tidak clickable link - Terdapat koma yang double - Terdapat wording yang seharusnya italic
+   Expected: Seharusnya wording pada email sesuai
+------------------------------------------------------------
+SIT-026 | bfRequestLetter | Wording | Policy:   | QA: Humai
+   Issue   : Beberapa wording pada email belum sesuai (detail pada evidence): - Terdapat wording yang seharusnya tidak di bold dan berwarna hitam
+   Expected: Seharusnya wording pada email sesuai
+------------------------------------------------------------
+SIT-027 | iPostMaturity | Wording | Policy:  | QA: Gita
+   Issue   : Beberapa wording pada email belum sesuai (detail pada evidence)
+   Expected: Seharusnya wording pada email sesuai
+------------------------------------------------------------
+SIT-028 | InterimCoverageV3 | Functionality | Policy: 413434F0 | QA: kalisa
+   Issue   : Email tidak terkirim
+   Expected: Seharusnya terkirim
+------------------------------------------------------------
+SIT-029 | iGCPPre | Wording | Policy:   | QA: Humai
+   Issue   : Beberapa wording pada email belum sesuai (detail pada evidence): - Terdapat wording yang seharusnya dibuat pada baris baru - Email tidak clickable link - Terdapat koma yang double - Terdapat wording yang seharusnya italic
+   Expected: Seharusnya wording pada email sesuai
+------------------------------------------------------------
+SIT-030 | iNFL_expiry | Wording | Policy:   | QA: Humai
+   Issue   : Beberapa wording pada email belum sesuai (detail pada evidence): - Terdapat wording yang seharusnya dibuat pada baris baru - Terdapat wording yang seharusnya dibuat pada baris baru dan wordingnya perlu disesuaikan - Email tidak clickable link - Terdapat koma yang double - Terdapat wording yang seharusnya italic
+   Expected: Seharusnya wording pada email sesuai
+------------------------------------------------------------
+SIT-031 | IlustrasiRPU | Wording | Policy:   | QA: Humai
+   Issue   : Beberapa wording pada email belum sesuai (detail pada evidence): - Terdapat wording yang seharusnya dibuat pada baris baru - Email tidak clickable link - Terdapat koma yang double - Terdapat wording yang seharusnya italic
+   Expected: Seharusnya wording pada email sesuai
+------------------------------------------------------------
+SIT-032 | iPaymentAdvice | Functionality | Policy:   | QA: Humai
+   Issue   : Email tidak diterima dan File tidak terbentuk di filenet
+   Expected: Seharusnya terima email dan masuk ke filenet
+------------------------------------------------------------
+SIT-033 | CLOCLMLT | Functionality | Policy:   | QA: Humai
+   Issue   : Email tidak diterima dan File tidak terbentuk di filenet
+   Expected: Seharusnya terima email dan masuk ke filenet
+------------------------------------------------------------
+SIT-034 | iStopACR | Functionality | Policy:   | QA: Humai
+   Issue   : Email tidak diterima dan File terbentuk double di filenet
+   Expected: Seharusnya terima email dan data pada filenet tidak double
+------------------------------------------------------------
+SIT-035 | Finatra_Epolicy | Wording | Policy:  | QA: Harris
+   Issue   : Supporting file untuk finatra epolicy belum roboto, akan dideliver dari prodev
+   Expected: epolicy sudah menggunakan supporting file terbaru
+------------------------------------------------------------

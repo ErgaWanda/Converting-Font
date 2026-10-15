@@ -1,0 +1,73 @@
+﻿=== EVIDENCE SHEET ===
+Dimensions: A1:C60
+Images in Evidence sheet: 0
+  Row 1: ('Log ID', 'Image Evidence', None)
+  Row 2: ('SIT-001', None, None)
+  Row 3: ('SIT-003', 'actual :                                                                                                      expected :', None)
+  Row 5: ('SIT-005', None, None)
+  Row 6: ('SIT-006', None, None)
+  Row 7: ('SIT-007', None, None)
+  Row 8: ('SIT-008', None, None)
+  Row 9: ('SIT-011', None, None)
+  Row 10: ('SIT-012', None, None)
+  Row 11: ('SIT-013', None, None)
+  Row 12: ('SIT-014', '#VALUE!', None)
+  Row 13: ('SIT-015', None, None)
+  Row 14: ('SIT-016', None, None)
+  Row 15: ('SIT-017', None, None)
+  Row 16: ('SIT-018', None, None)
+  Row 17: ('SIT-019', None, '- Solutation dari data, dan format rupiah juga dari data')
+  Row 18: ('SIT-020', None, None)
+  Row 19: ('SIT-021', None, None)
+  Row 20: ('SIT-022', None, None)
+  Row 21: ('SIT-023', None, None)
+  Row 22: ('SIT-024', None, None)
+  Row 23: ('SIT-025', None, None)
+  Row 24: ('SIT-026', None, None)
+  Row 25: ('SIT-027', None, None)
+  Row 26: ('SIT-028', None, None)
+  Row 27: ('SIT-029', None, None)
+  Row 28: ('SIT-030', None, None)
+  Row 29: ('SIT-031', None, None)
+  Row 30: ('SIT-032', None, None)
+  Row 31: ('SIT-033', None, None)
+  Row 32: ('SIT-034', None, None)
+  Row 33: ('SIT-035', None, None)
+  Row 34: ('SIT-036', None, None)
+  Row 35: ('SIT-037', None, None)
+  Row 36: ('SIT-038', None, None)
+  Row 37: ('SIT-039', None, None)
+  Row 38: ('SIT-040', None, None)
+  Row 39: ('SIT-041', None, None)
+  Row 40: ('SIT-042', None, None)
+  Row 41: ('SIT-043', None, None)
+  Row 42: ('SIT-044', None, None)
+  Row 43: ('SIT-045', None, None)
+  Row 44: ('SIT-046', None, None)
+  Row 45: ('SIT-047', None, None)
+  Row 46: ('SIT-048', None, None)
+  Row 47: ('SIT-049', None, None)
+  Row 48: ('SIT-050', None, None)
+  Row 49: ('SIT-051', None, None)
+  Row 50: ('SIT-052', None, None)
+  Row 51: ('SIT-053', None, None)
+  Row 52: ('SIT-054', None, None)
+  Row 53: ('SIT-055', None, None)
+  Row 54: ('SIT-056', None, None)
+  Row 55: ('SIT-057', None, None)
+  Row 56: ('SIT-058', None, None)
+  Row 57: ('SIT-059', None, None)
+  Row 58: ('SIT-060', None, None)
+  Row 59: ('SIT-061', None, None)
+  Row 60: ('SIT-062', None, None)
+
+=== SIT LOG SHEET ===
+Images in SIT Log sheet: 0
+
+=== REVIEW DOC - Verifikasi Fixes ===
+SIT-004: Category=Wording, Expected='Wording pada letter seharusnya "...akan, Policy='HS99999999165_6'
+SIT-016: Category=Wording, Expected='Wording sesuai', Policy=99999911
+  Issue typo Pengduan: False | snippet: 'Wording tidak di BOLD contoh : \n- Layanan Pengaduan\n- Penyelesaian Perselisihan\n'
+SIT-017: Category=Wording, Expected='Wording sesuai', Policy=99999913
+  Issue typo Pengduan: False | snippet: 'Wording tidak di BOLD contoh : \n- Layanan Pengaduan\n- Penyelesaian Perselisihan\n'
+SIT-019: Category=Wording, Expected='Semua Font Roboto', Policy=''

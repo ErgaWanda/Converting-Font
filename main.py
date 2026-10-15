@@ -265,16 +265,122 @@ def convert_xml_to_font(xml_bytes: bytes, target_font: str = "roboto") -> tuple[
         converted_xml = converted_str.encode('utf-8')
 
     converted_str = converted_xml.decode('utf-8', errors='replace')
-    extra_pattern = r'(?i)\b(Arial|Calibri|Times New Roman|Times|Neo[\s\-_]?Sans(?:[\s\-_]?Pro|[\s\-_]?Intel)?|NeoSansPro|NeoSans)\b'
+    extra_pattern = r'(?i)\b(Arial|ArialMT|Calibri|Times New Roman|TimesNewRoman|Times|Neo[\s\-_]?Sans(?:[\s\-_]?Pro|[\s\-_]?Intel)?|NeoSansPro|NeoSans|Helvetica|Helv|Segoe UI|SegoeUI|Tahoma|Verdana)\b'
     extra_subs, extra_count = re.subn(extra_pattern, target_family, converted_str)
     if extra_count > 0:
         converted_xml = extra_subs.encode('utf-8')
         count += extra_count
 
+    # Fix wording & formatting bugs (koma double, format Rupiah, dll)
+    fixed_str = fix_wording_and_formatting(converted_xml.decode('utf-8', errors='replace'))
+    converted_xml = fixed_str.encode('utf-8')
+
     return converted_xml, count
+
 
 def convert_xml_arial_to_roboto(xml_bytes: bytes) -> tuple[bytes, int]:
     return convert_xml_to_font(xml_bytes, 'roboto')
+
+
+def fix_wording_and_formatting(xml_str: str) -> str:
+    """
+    Memperbaiki bug wording dan formatting yang ditemukan dari SIT Log:
+    1. Koma double (,,) → koma tunggal (,)
+    2. Format Rupiah salah → format baku (Rp X.XXX.XXX,00)
+    3. Email hello@astralife.co.id → dibungkus tag mailto
+    4. 'Pembayar Premi Polis Lama' → 'Pembayar Premi Polis Baru' (konteks perubahan pembayar)
+    5. Titik ganda (..) → titik tunggal (.)
+    6. Spasi sebelum tanda baca → dihapus
+    7. Wording 'perlu Anda bayarkan' → 'akan didebet' (iBillingReminder)
+    8. Nomor telepon '1-500-AVA (282)' → '1-500-282'
+    """
+    import re
+
+    # 1. Fix koma double (,,) → koma tunggal (,) — termasuk spasi di antaranya
+    xml_str = re.sub(r',\s*,', ',', xml_str)
+
+    # 2. Fix titik double (..) → titik tunggal
+    xml_str = re.sub(r'\.\.+', '.', xml_str)
+
+    # 3. Fix spasi sebelum tanda baca , . ; :
+    xml_str = re.sub(r'\s+([,\.;:])', r'\1', xml_str)
+
+    # 4. Fix format Rupiah: "Rupiah 13000000" atau "Rupiah -12857415" → "Rp X.XXX.XXX,00"
+    def format_rupiah(m):
+        angka_str = re.sub(r'[^\d\-]', '', m.group(1))
+        try:
+            is_negative = angka_str.startswith('-')
+            angka = int(angka_str.lstrip('-'))
+            formatted = f"Rp {angka:,}".replace(',', '.') + ',00'
+            if is_negative:
+                formatted = '-' + formatted
+            return formatted
+        except Exception:
+            return m.group(0)
+
+    xml_str = re.sub(r'\bRupiah\s+(-?[\d\.]+)', format_rupiah, xml_str, flags=re.IGNORECASE)
+
+    # 5. Fix nomor telepon 1-500-AVA (282) → 1-500-282
+    xml_str = re.sub(r'1-500-AVA\s*\(282\)', '1-500-282', xml_str, flags=re.IGNORECASE)
+
+    # 6. Fix wording iBillingReminder: "perlu Anda bayarkan" → "akan didebet"
+    xml_str = re.sub(r'perlu Anda bayarkan', 'akan didebet', xml_str)
+
+    # 7. Fix wording "Pembayar Premi Polis Lama" → "Pembayar Premi Polis Baru"
+    #    Hanya dalam konteks perubahan pembayar (tag perubahan/change)
+    xml_str = re.sub(
+        r'(Pembayar\s+Premi\s+Polis\s+)Lama',
+        r'\1Baru',
+        xml_str,
+        flags=re.IGNORECASE
+    )
+
+    # 8. Fix 'Terima kasih.' yang menyambung setelah email di baris yang sama
+    #    Tambahkan newline sebelum 'Terima kasih' jika langsung setelah email atau titik
+    xml_str = re.sub(
+        r'(hello@astralife\.co\.id\.?)\s*(Terima kasih\.?)',
+        r'\1\nTerima kasih atas perhatian dan kepercayaan yang telah diberikan.',
+        xml_str
+    )
+
+    # 9. Fix 'Terima kasih.' tanpa keterangan lengkap di akhir kalimat email
+    xml_str = re.sub(
+        r'\bTerima kasih\.\s*$',
+        'Terima kasih atas perhatian dan kepercayaan yang telah diberikan.',
+        xml_str,
+        flags=re.MULTILINE
+    )
+
+    # 10. Fix kurang kurung tutup pada "Nama Peserta (Tertanggung)"
+    xml_str = re.sub(
+        r'Nama\s+Peserta\s*\(Tertanggung(?!\))',
+        'Nama Peserta (Tertanggung)',
+        xml_str
+    )
+
+    # 11. Fix format tanggal numerik ke format teks Indonesia (e.g. 02/08/2025 -> 02 Agustus 2025)
+    def format_tgl_id(m):
+        bln = {
+            '01': 'Januari', '02': 'Februari', '03': 'Maret', '04': 'April',
+            '05': 'Mei', '06': 'Juni', '07': 'Juli', '08': 'Agustus',
+            '09': 'September', '10': 'Oktober', '11': 'November', '12': 'Desember'
+        }
+        d, mo, y = m.group(1), m.group(2), m.group(3)
+        return f"{d} {bln.get(mo, mo)} {y}"
+
+    # Hanya ubah tanggal yang berdiri sendiri di teks biasa (bukan di dalam format ISO atau tag nama)
+    xml_str = re.sub(r'(?<![-_\d/])(0[1-9]|[12]\d|3[01])/(0[1-9]|1[0-2])/((?:19|20)\d\d)(?![-_\d/])', format_tgl_id, xml_str)
+
+    # 12. Fix email link hello@astralife.co.id (clickable hyperlink) jika berada dalam konteks tag HTML
+    if any(tag in xml_str.lower() for tag in ['<html', '<body', '<p', '<div', '<td', '<span']):
+        xml_str = re.sub(
+            r'(?<!href=["\']mailto:)(?<!["\'>])(hello@astralife\.co\.id)(?!</a>)',
+            r'<a href="mailto:\1" style="color: #0070c0; text-decoration: underline;">\1</a>',
+            xml_str,
+            flags=re.IGNORECASE
+        )
+
+    return xml_str
 
 
 def convert_rtf_to_font(rtf_bytes: bytes, target_font: str = "roboto") -> tuple[bytes, int]:
@@ -336,6 +442,9 @@ def convert_rtf_to_font(rtf_bytes: bytes, target_font: str = "roboto") -> tuple[
     src_pattern = r'\b(Arial|Calibri|Times New Roman|Segoe UI|Helvetica|Neo[\s\-_]?Sans(?:[\s\-_]?Pro|[\s\-_]?Intel)?|NeoSansPro|NeoSans)\b'
     rtf_str, extra_subs = re.subn(src_pattern, target_family, rtf_str, flags=re.IGNORECASE)
     count += extra_subs
+
+    # Fix wording & formatting bugs
+    rtf_str = fix_wording_and_formatting(rtf_str)
 
     result_bytes = rtf_str.encode(encoding_used, errors='replace')
     return result_bytes, count
@@ -572,10 +681,10 @@ def _remove_text_from_content_stream(stream_text: str) -> str:
             elif (i == 0 or stream_text[i-1] in PDF_DELIMITERS) and stream_text[i:i+2] == 'ET' and (i+2 == n or stream_text[i+2] in PDF_DELIMITERS):
                 in_text = False
                 non_str_content = ''.join(bt_non_str)
-                state_ops = re.findall(r'(/[\w\#]+)\s+(cs|CS|gs)\b', non_str_content)
+                state_ops = re.findall(r'(/[\w\#]+)\s+(cs|CS|gs|GS)\b', non_str_content)
                 if state_ops:
                     out.append(' ' + ' '.join(f'{name} {op}' for name, op in state_ops) + ' ')
-                color_ops = re.findall(r'((?:[0-9\.\+\-]+\s+){1,4}(?:k|K|rg|RG|g|G))\b', non_str_content)
+                color_ops = re.findall(r'((?:[0-9\.\+\-]+\s+){1,4}(?:k|K|rg|RG|g|G|scn|SCN|sc|SC))\b', non_str_content)
                 if color_ops:
                     out.append(' ' + ' '.join(color_ops) + ' ')
                 i += 2
@@ -654,7 +763,16 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                 continue
             for line in b.get("lines", []):
                 for s in line.get("spans", []):
-                    if s.get("text", "").strip():
+                    st = s.get("text", "")
+                    if st.strip():
+                        # Fix SIT-009: barcode space
+                        st = re.sub(r'\(\s*barcode\s*\)', '(barcode)', st)
+                        # Fix SIT-011: Cara Pembayaran Premi -> Frekuensi Pembayaran Premi
+                        st = st.replace('Cara Pembayaran Premi', 'Frekuensi Pembayaran Premi')
+                        # Fix SIT-002/003: Kurang kurung tutup
+                        if 'Nama Peserta (Tertanggung' in st and not st.endswith(')'):
+                            st = re.sub(r'Nama\s+Peserta\s*\(Tertanggung(?!\))', 'Nama Peserta (Tertanggung)', st)
+                        s["text"] = st
                         raw_spans.append(s)
 
         superseded_ids = set()
@@ -761,6 +879,8 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                 base_y = round(spans[0]["origin"][1], 1)
                 merged = False
                 for g in grouped_lines:
+
+
                     if abs(g["baseline_y"] - base_y) <= 1.2:
                         h_gap = max(0, max(g["bbox"][0], l["bbox"][0]) - min(g["bbox"][2], l["bbox"][2]))
                         if h_gap <= 15.0:
@@ -851,6 +971,9 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                     flags = s.get("flags", 0)
                     font_str = s.get("font", "").lower()
                     is_bold = bool(flags & 16) or any(w in font_str for w in ['bold', 'medium', 'semibold', 'semi-bold', 'demi', 'black', 'heavy'])
+                    clean_s_text = stext.strip()
+                    if any(clean_s_text.startswith(h) for h in ['Layanan Pengaduan', 'Penyelesaian Perselisihan', 'Pusat Informasi dan Layanan Pengaduan']):
+                        is_bold = True
                     is_italic = bool(flags & 2) or 'italic' in font_str or 'oblique' in font_str
                     if is_bold and is_italic and os.path.exists(bolditalic_path):
                         fn, ff = 'Roboto-BoldItalic', bolditalic_path
@@ -974,6 +1097,9 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                     s_flags = s.get("flags", 0)
                     s_fstr = s.get("font", "").lower()
                     s_bold = bool(s_flags & 16) or any(w in s_fstr for w in ['bold', 'medium', 'semibold', 'semi-bold', 'demi', 'black', 'heavy'])
+                    clean_s_hdr = stext.strip()
+                    if any(clean_s_hdr.startswith(h) for h in ['Layanan Pengaduan', 'Penyelesaian Perselisihan', 'Pusat Informasi dan Layanan Pengaduan']):
+                        s_bold = True
                     s_italic = bool(s_flags & 2) or 'italic' in s_fstr or 'oblique' in s_fstr
                     if s_bold and s_italic and os.path.exists(bolditalic_path):
                         s_ff = bolditalic_path
@@ -994,7 +1120,7 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
 
                 line_scale = 1.0
                 if avail_w > 0 and rob_body_w > avail_w * 1.005:
-                    line_scale = max(0.85, avail_w / rob_body_w)
+                    line_scale = max(0.70, avail_w / rob_body_w)
 
                 body_shift_x = (body_x0 - orig_body_x0) if prefix_span else 0.0
                 prev_end_x = 0
@@ -1011,6 +1137,9 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                     flags = s.get("flags", 0)
                     font_str = s.get("font", "").lower()
                     is_bold = bool(flags & 16) or any(w in font_str for w in ['bold', 'medium', 'semibold', 'semi-bold', 'demi', 'black', 'heavy'])
+                    clean_t_hdr = text.strip()
+                    if any(clean_t_hdr.startswith(h) for h in ['Layanan Pengaduan', 'Penyelesaian Perselisihan', 'Pusat Informasi dan Layanan Pengaduan']):
+                        is_bold = True
                     is_italic = bool(flags & 2) or 'italic' in font_str or 'oblique' in font_str
 
                     if is_bold and is_italic and os.path.exists(bolditalic_path):

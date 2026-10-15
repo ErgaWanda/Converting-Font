@@ -1,0 +1,571 @@
+﻿py : C:\Users\ewand\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\openpyxl\reader\drawings.py:33: 
+UserWarning: DrawingML support is incomplete and limited to charts and images only. Shapes and drawings will be lost.
+At line:1 char:1
++ py -c "
++ ~~~~~~~
+    + CategoryInfo          : NotSpecified: (C:\Users\ewand\...s will be lost.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  warn("DrawingML support is incomplete and limited to charts and images only. Shapes and drawings will be lost.")
+===== FULL SIT LOG =====
+Headers: ['Log ID', 'Raised Date', 'Template', 'Process / Scenario', 'Issue Description', 'Expected result', 'Policy No.', 'QA', 'Assign to', 'Category', 'Severity', 'Status', 'Target Completion Date', 'Retest Date', 'Testing Result', 'Remark', 'Dev/BA Comments']
+
+Row 2:
+  Log ID: SIT-001
+  Raised Date: 2026-09-29 00:00:00
+  Template: InterimCoverageCL
+  Process / Scenario: Email to dan Email CC
+  Issue Description: Email to dan Email CC berbeda dengan yang ada pada XML
+
+terkirim hanya ke 1 Email saja 
+
+pada XML tercatat :
+ <sentTo>kalisasuhardi@gmail.com</sentTo>
+<sentCc>rozi.sepriadi@astralife.co.id,kalisa.suhardi@astralife.co.id</sentCc>
+
+tp pada email terkirim hanya ke emailrozi.sepriadi@astralife.co.id 
+  Expected result: Email terkirim sesuai dengan emang yang terdaftar pada XML
+  QA: Kalisa
+  Assign to: RDS Tim
+  Category: Functionality
+  Severity: MEDIUM
+  Status: OPEN
+
+Row 3:
+  Log ID: SIT-002
+  Raised Date: 2026-09-29 00:00:00
+  Template: BILLNOT02
+  Process / Scenario: Drop XML yang sama / Rename XML
+  Issue Description: XML Tidak terproses
+  Expected result: Seharusnya XML tetap diproses
+  QA: Rony
+  Assign to: RDS Tim
+  Category: Functionality
+  Severity: MEDIUM
+  Status: OPEN
+
+Row 4:
+  Log ID: SIT-003
+  Raised Date: 2026-09-29 00:00:00
+  Template: NOTOWC10 
+  Process / Scenario: layout wording bergeser 
+  Issue Description: - Terima kasih atas kepercayaan yang telah Anda berikan kepada kami, PT ASURANSI JIWA ASTRA, sebagai penyedia
+layanan asuransi jiwa bagi Anda dan keluarga.ΓåÆ posisi wording naik dari yang sebelumnya
+- alamat bergabung dengan baris nama perusahaan
+  Expected result: - Terima kasih atas kepercayaan yang telah Anda berikan kepada kami, PT ASURANSI JIWA ASTRA, sebagai
+penyedia layanan asuransi jiwa bagi Anda dan keluarga.ΓåÆ posisi wording naik dari yang sebelumnya
+- alamat tidak bergabung dengan baris nama perusahaan
+  QA: Rangga
+  Assign to: RDS Tim
+  Category: Layout
+  Severity: LOW
+  Status: OPEN
+
+Row 5:
+  Log ID: SIT-004
+  Raised Date: 2026-09-29 00:00:00
+  Template: PREAMNA3
+  Process / Scenario: File tidak terbentuk di filenet
+,dan untuk wording di pdf bergeser dari wording tamplate 
+  Issue Description: File tidak terbentuk di filenet,karna contract_no tidak terbentuk di meta data  (null)
+
+dan untuk wording di pdf bergeser dari wording tamplate 
+  Expected result: no polis terbentuk pada file net dan juga pada meta data
+  QA: Rangga
+  Assign to: RDS Tim
+  Category: Functionality
+  Severity: MEDIUM
+  Status: OPEN
+
+Row 6:
+  Log ID: SIT-005
+  Raised Date: 2026-09-29 00:00:00
+  Template: YGEXPRCP
+  Process / Scenario: metadata Response masih belum sesuai
+  Issue Description: - field 'Template_id' masih ada
+- field 'path output' masih null
+  Expected result: - harusnya 'Template_name'
+- harus sesuai dengan meta data request 
+  QA: Shafira
+  Assign to: RDS Tim
+  Category: Functionality
+  Severity: MEDIUM
+  Status: OPEN
+
+Row 7:
+  Log ID: SIT-006
+  Raised Date: 2026-09-29 00:00:00
+  Template: YGCLPRCP-RC
+  Process / Scenario: metadata Response masih belum sesuai
+  Issue Description: - field 'Template_id' masih ada
+- field 'path output' masih null
+- tidak terima email
+  Expected result: - harusnya 'Template_name'
+- harus sesuai dengan meta data request 
+  QA: Shafira
+  Assign to: RDS Tim
+  Category: Functionality
+  Severity: MEDIUM
+  Status: OPEN
+
+Row 8:
+  Log ID: SIT-007
+  Raised Date: 2026-09-29 00:00:00
+  Template: NOTEDR01
+  Process / Scenario: Tidak menampilkan wording pada tamplate PDF
+  Issue Description: PDF tidak menampilkan "pemilikRekening", sedangkan pada XML field tersebut terisi 
+  Expected result: PDF menampilkan "pemilikRekening", sedangkan pada XML field tersebut terisi 
+  QA: Rangga
+  Assign to: RDS Tim
+  Category: Wording
+  Severity: MEDIUM
+  Status: OPEN
+
+Row 9:
+  Log ID: SIT-008
+  Raised Date: 2026-09-29 00:00:00
+  Template: NFL01 / Template Lain
+  Process / Scenario: Drop XML
+  Issue Description: Beberapa kali testing drop XML, RDS mengirimkan file berulang bahkan ada yang sampai 7x dengan file yang sama persis untuk satu request
+  Expected result: Transaksi berjalan normal
+  QA: Rony
+Gita
+  Assign to: RDS Tim
+  Category: Functionality
+  Severity: CRITICAL
+  Status: OPEN
+
+Row 10:
+  Log ID: SIT-009
+  Raised Date: 2026-09-29 00:00:00
+  Template: YGCLPRCP-FP
+  Process / Scenario: metadata Response masih belum sesuai
+  Issue Description: - field 'Template_id' masih ada
+- field 'path output' masih null
+- tidak terima email
+  Expected result: - harusnya 'Template_name'
+- harus sesuai dengan meta data request 
+  QA: Shafira
+  Assign to: RDS Tim
+  Category: Functionality
+  Severity: MEDIUM
+  Status: OPEN
+
+Row 11:
+  Log ID: SIT-010
+  Raised Date: 2026-09-29 00:00:00
+  Template: ChangeComponent
+  Process / Scenario: metadata belum sesuai
+  Issue Description: path_output terisi
+  Expected result: seharusnya path_output tidak terisi
+  QA: Gita
+  Assign to: RDS Tim
+  Category: Functionality
+  Severity: MEDIUM
+  Status: CLOSED
+  Remark: hasil proses XML tgl 28/09 path_output terisi
+hasil proses XML tgl 28/09 path_output sudah tidak terisi
+
+Row 12:
+  Log ID: SIT-011
+  Raised Date: 2026-09-30 00:00:00
+  Template: ChangeComponent
+  Process / Scenario: wording email belum sesuai
+  Issue Description: beberapa wording pada email belum sesuai (detail pada evidence):
+-  Bapak/Ibu seharusnya sesuai salutation
+-  Terdapat wording yang seharusnya dibuat pada baris baru
+-  Terdapat koma yang double
+- Terdapat wording yang seharusnya italic
+  Expected result: seharusnya wording pada email sesuai
+  QA: Gita
+  Assign to: RDS Tim
+  Category: Wording
+  Severity: MEDIUM
+  Status: OPEN
+
+Row 13:
+  Log ID: SIT-012
+  Raised Date: 2026-09-30 00:00:00
+  Template: iPayorchange
+  Process / Scenario: Wording email belum sesuai
+  Issue Description: Beberapa wording pada email belum sesuai (detail pada evidence):
+- Wording Polis Lama seharusnya Polis Baru
+- Terdapat wording yang seharusnya dibuat pada baris baru
+- Terdapat koma yang double
+- Terdapat titik yang kurang
+- Terdapat wording yang seharusnya italic
+  Expected result: Seharusnya wording pada email sesuai
+  QA: Humai
+  Assign to: RDS Tim
+  Category: Layout
+  Severity: LOW
+  Status: OPEN
+
+Row 14:
+  Log ID: SIT-013
+  Raised Date: 2026-10-01 00:00:00
+  Template: iPreMaturity
+  Process / Scenario: wording email belum sesuai
+  Issue Description: beberapa wording pada email belum sesuai (detail pada evidence)
+  Expected result: seharusnya wording pada email sesuai
+  QA: Gita
+  Assign to: RDS Tim
+  Category: Wording
+  Severity: LOW
+  Status: OPEN
+
+Row 15:
+  Log ID: SIT-014
+  Raised Date: 2026-10-01 00:00:00
+  Template: RPU
+  Process / Scenario: wording email belum sesuai
+  Issue Description: beberapa wording pada email belum sesuai (detail pada evidence)
+  Expected result: seharusnya wording pada email sesuai
+  QA: Gita
+  Assign to: RDS Tim
+  Category: Wording
+  Severity: LOW
+  Status: OPEN
+
+Row 16:
+  Log ID: SIT-015
+  Raised Date: 2026-10-01 00:00:00
+  Template: iExpiry
+  Process / Scenario: Wording email belum sesuai
+  Issue Description: Beberapa wording pada email belum sesuai (detail pada evidence):
+- Terdapat koma yang double
+- Terdapat wording yang seharusnya italic
+- Terdapat wording yang seharusnya dibuat pada baris baru
+  Expected result: Seharusnya wording pada email sesuai
+  QA: Humai
+  Assign to: RDS Tim
+  Category: Wording
+  Severity: LOW
+  Status: OPEN
+
+Row 17:
+  Log ID: SIT-016
+  Raised Date: 2026-10-01 00:00:00
+  Template: iFullsur2
+  Process / Scenario: Wording email belum sesuai
+  Issue Description: Beberapa wording pada email belum sesuai (detail pada evidence):
+- Terdapat koma yang double
+- Terdapat wording yang seharusnya italic
+- Terdapat wording yang seharusnya dibuat pada baris baru
+  Expected result: Seharusnya wording pada email sesuai
+  QA: Humai
+  Assign to: RDS Tim
+  Category: Wording
+  Severity: LOW
+  Status: OPEN
+
+Row 18:
+  Log ID: SIT-017
+  Raised Date: 2026-10-01 00:00:00
+  Template: iAPLRepayment
+  Process / Scenario: Wording email belum sesuai
+  Issue Description: Beberapa wording pada email belum sesuai (detail pada evidence):
+- Terdapat wording yang seharusnya dibuat pada baris baru
+- Terdapat wording yang seharusnya italic
+- Email tidak clickable link
+  Expected result: Seharusnya wording pada email sesuai
+  QA: Humai
+  Assign to: RDS Tim
+  Category: Wording
+  Severity: LOW
+  Status: OPEN
+
+Row 19:
+  Log ID: SIT-018
+  Raised Date: 2026-10-01 00:00:00
+  Template: RPU
+  Process / Scenario: Template letter belum sesuai
+  Issue Description: - terdapat wording yang sehaursnya italic
+- terdapat kurang layout (garis putus-putus) pada table
+  Expected result: seharusnya template sesuai
+  QA: Gita
+  Assign to: RDS Tim
+  Category: Wording
+  Severity: LOW
+  Status: OPEN
+
+Row 20:
+  Log ID: SIT-019
+  Raised Date: 2026-10-01 00:00:00
+  Template: iAPL_yearly_report
+  Process / Scenario: Wording email dan file pdf belum sesuai
+  Issue Description: Beberapa wording pada email belum sesuai (detail pada evidence):
+- Terdapat wording yang seharusnya dibuat pada baris baru
+- Email tidak clickable link
+- Terdapat koma yang double
+- Terdapat wording yang seharusnya italic
+
+Beberapa wording pada file pdf belum sesuai (detail pada evidence):
+- Kurang kata Anda
+- Format rupiah masih belum sesuai
+  Expected result: Seharusnya wording pada email sesuai
+  QA: Humai
+  Assign to: RDS Tim
+  Category: Wording
+  Severity: LOW
+  Status: OPEN
+
+Row 21:
+  Log ID: SIT-020
+  Raised Date: 2026-10-01 00:00:00
+  Template: iAPL3
+  Process / Scenario: Wording email dan file pdf belum sesuai
+  Issue Description: Beberapa wording pada email belum sesuai (detail pada evidence):
+- Terdapat wording yang seharusnya dibuat pada baris baru
+- Email tidak clickable link
+- Terdapat koma yang double
+- Terdapat wording yang seharusnya italic
+  Expected result: Seharusnya wording pada email sesuai
+  QA: Humai
+  Assign to: RDS Tim
+  Category: Wording
+  Severity: LOW
+  Status: OPEN
+
+Row 22:
+  Log ID: SIT-021
+  Raised Date: 2026-10-01 00:00:00
+  Template: iReinstatement
+  Process / Scenario: wording email belum sesuai
+  Issue Description: wording email untuk kondisi isEndorsement = N belum sesuai
+  Expected result: wording email untuk kondisi isEndorsement = N sesuai
+  QA: Gita
+  Assign to: RDS Tim
+  Category: Wording
+  Severity: MEDIUM
+  Status: OPEN
+
+Row 23:
+  Log ID: SIT-022
+  Raised Date: 2026-10-01 00:00:00
+  Template: iAPL2
+  Process / Scenario: Wording email dan file pdf belum sesuai
+  Issue Description: Beberapa wording pada email belum sesuai (detail pada evidence):
+- Terdapat wording yang seharusnya dibuat pada baris baru
+- Email tidak clickable link
+- Terdapat koma yang double
+- Terdapat wording yang seharusnya italic
+  Expected result: Seharusnya wording pada email sesuai
+  QA: Humai
+  Assign to: RDS Tim
+  Category: Wording
+  Severity: LOW
+  Status: OPEN
+
+Row 24:
+  Log ID: SIT-023
+  Raised Date: 2026-10-01 00:00:00
+  Template: iReinstatement
+  Process / Scenario: wording email belum sesuai
+  Issue Description: wording email untuk kondisi isEndorsement = Y belum sesuai
+  Expected result: wording email untuk kondisi isEndorsement = Y sesuai
+  QA: Gita
+  Assign to: RDS Tim
+  Category: Wording
+  Severity: MEDIUM
+  Status: OPEN
+
+Row 25:
+  Log ID: SIT-024
+  Raised Date: 2026-10-01 00:00:00
+  Template: iAPL1
+  Process / Scenario: Wording email dan file pdf belum sesuai
+  Issue Description: Beberapa wording pada email belum sesuai (detail pada evidence):
+- Terdapat wording yang seharusnya dibuat pada baris baru
+- Email tidak clickable link
+- Terdapat koma yang double
+- Terdapat wording yang seharusnya italic
+  Expected result: Seharusnya wording pada email sesuai
+  QA: Humai
+  Assign to: RDS Tim
+  Category: Wording
+  Severity: LOW
+  Status: OPEN
+
+Row 26:
+  Log ID: SIT-025
+  Raised Date: 2026-10-01 00:00:00
+  Template: iAgentMovement
+  Process / Scenario: Wording email dan file pdf belum sesuai
+  Issue Description: Beberapa wording pada email belum sesuai (detail pada evidence):
+- Terdapat wording yang seharusnya dibuat pada baris baru
+- Email tidak clickable link
+- Terdapat koma yang double
+- Terdapat wording yang seharusnya italic
+  Expected result: Seharusnya wording pada email sesuai
+  QA: Humai
+  Assign to: RDS Tim
+  Category: Wording
+  Severity: LOW
+  Status: OPEN
+
+Row 27:
+  Log ID: SIT-026
+  Raised Date: 2026-10-01 00:00:00
+  Template: bfRequestLetter
+  Process / Scenario: Wording email dan file pdf belum sesuai
+  Issue Description: Beberapa wording pada email belum sesuai (detail pada evidence):
+- Terdapat wording yang seharusnya tidak di bold dan berwarna hitam
+  Expected result: Seharusnya wording pada email sesuai
+  QA: Humai
+  Assign to: RDS Tim
+  Category: Wording
+  Severity: LOW
+  Status: OPEN
+
+Row 28:
+  Log ID: SIT-027
+  Raised Date: 2026-10-01 00:00:00
+  Template: iPostMaturity
+  Process / Scenario: wording email belum sesuai
+  Issue Description: Beberapa wording pada email belum sesuai (detail pada evidence)
+  Expected result: Seharusnya wording pada email sesuai
+  QA: Gita
+  Assign to: RDS Tim
+  Category: Wording
+  Severity: LOW
+  Status: OPEN
+
+Row 29:
+  Log ID: SIT-028
+  Raised Date: 2026-09-30 00:00:00
+  Template: InterimCoverageV3
+  Process / Scenario: Email tidak terkirim
+  Issue Description: Email tidak terkirim
+  Expected result: Seharusnya terkirim
+  Policy No.: 413434F0
+  QA: kalisa
+  Assign to: RDS Tim
+  Category: Functionality
+  Severity: MEDIUM
+  Status: OPEN
+
+Row 30:
+  Log ID: SIT-029
+  Raised Date: 2026-10-01 00:00:00
+  Template: iGCPPre
+  Process / Scenario: Wording email dan file pdf belum sesuai
+  Issue Description: Beberapa wording pada email belum sesuai (detail pada evidence):
+- Terdapat wording yang seharusnya dibuat pada baris baru
+- Email tidak clickable link
+- Terdapat koma yang double
+- Terdapat wording yang seharusnya italic
+  Expected result: Seharusnya wording pada email sesuai
+  QA: Humai
+  Assign to: RDS Tim
+  Category: Wording
+  Severity: LOW
+  Status: OPEN
+
+Row 31:
+  Log ID: SIT-030
+  Raised Date: 2026-10-01 00:00:00
+  Template: iNFL_expiry
+  Process / Scenario: Wording email dan file pdf belum sesuai
+  Issue Description: Beberapa wording pada email belum sesuai (detail pada evidence):
+- Terdapat wording yang seharusnya dibuat pada baris baru
+- Terdapat wording yang seharusnya dibuat pada baris baru dan wordingnya perlu disesuaikan
+- Email tidak clickable link
+- Terdapat koma yang double
+- Terdapat wording yang seharusnya italic
+  Expected result: Seharusnya wording pada email sesuai
+  QA: Humai
+  Assign to: RDS Tim
+  Category: Wording
+  Severity: LOW
+  Status: OPEN
+
+Row 32:
+  Log ID: SIT-031
+  Raised Date: 2026-10-01 00:00:00
+  Template: IlustrasiRPU
+  Process / Scenario: Wording email dan file pdf belum sesuai
+  Issue Description: Beberapa wording pada email belum sesuai (detail pada evidence):
+- Terdapat wording yang seharusnya dibuat pada baris baru
+- Email tidak clickable link
+- Terdapat koma yang double
+- Terdapat wording yang seharusnya italic
+  Expected result: Seharusnya wording pada email sesuai
+  QA: Humai
+  Assign to: RDS Tim
+  Category: Wording
+  Severity: LOW
+  Status: OPEN
+
+Row 33:
+  Log ID: SIT-032
+  Raised Date: 2026-10-01 00:00:00
+  Template: iPaymentAdvice
+  Process / Scenario: Email tidak diterima dan File tidak terbentuk di filenet
+  Issue Description: Email tidak diterima dan File tidak terbentuk di filenet
+  Expected result: Seharusnya terima email dan masuk ke filenet
+  QA: Humai
+  Assign to: RDS Tim
+  Category: Functionality
+  Severity: LOW
+  Status: OPEN
+
+Row 34:
+  Log ID: SIT-033
+  Raised Date: 2026-10-01 00:00:00
+  Template: CLOCLMLT
+  Process / Scenario: Email tidak diterima dan File tidak terbentuk di filenet
+  Issue Description: Email tidak diterima dan File tidak terbentuk di filenet
+  Expected result: Seharusnya terima email dan masuk ke filenet
+  QA: Humai
+  Assign to: RDS Tim
+  Category: Functionality
+  Severity: LOW
+  Status: OPEN
+
+Row 35:
+  Log ID: SIT-034
+  Raised Date: 2026-10-01 00:00:00
+  Template: iStopACR
+  Process / Scenario: Email tidak diterima dan File terbentuk double di filenet
+  Issue Description: Email tidak diterima dan File terbentuk double di filenet
+  Expected result: Seharusnya terima email dan data pada filenet tidak double
+  QA: Humai
+  Assign to: RDS Tim
+  Category: Functionality
+  Severity: LOW
+  Status: OPEN
+
+Row 36:
+  Log ID: SIT-035
+  Raised Date: 2026-10-07 00:00:00
+  Template: Finatra_Epolicy
+  Process / Scenario: Document belum sesuai
+  Issue Description: Supporting file untuk finatra epolicy belum roboto, akan dideliver dari prodev
+  Expected result: epolicy sudah menggunakan supporting file terbaru
+  QA: Harris
+  Assign to: Astra Life
+  Category: Wording
+  Severity: LOW
+  Status: OPEN
+
+Row 37:
+  Log ID: SIT-036
+
+Row 38:
+  Log ID: SIT-037
+
+Row 39:
+  Log ID: SIT-038
+
+Row 40:
+  Log ID: SIT-039
+
+Row 41:
+  Log ID: SIT-040
+
+Row 42:
+  Log ID: SIT-041
+
+Row 43:
+  Log ID: SIT-042

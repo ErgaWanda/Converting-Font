@@ -1,0 +1,74 @@
+﻿py : C:\Users\ewand\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\openpyxl\reader\drawings.py:33: 
+UserWarning: DrawingML support is incomplete and limited to charts and images only. Shapes and drawings will be lost.
+At line:1 char:1
++ py -c "
++ ~~~~~~~
+    + CategoryInfo          : NotSpecified: (C:\Users\ewand\...s will be lost.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  warn("DrawingML support is incomplete and limited to charts and images only. Shapes and drawings will be lost.")
+
+===== SHEET: SIT Log =====
+Dimensions: A1:Q43, Max row: 43, Max col: 17
+--- First 15 rows ---
+  Row 1: ('Log ID', 'Raised Date', 'Template', 'Process / Scenario', 'Issue Description', 'Expected result', 'Policy No.', 'QA', 'Assign to', 'Category', 'Severity', 'Status', 'Target Completion Date', 'Retest Date', 'Testing Result', 'Remark', 'Dev/BA Comments')
+  Row 2: ('SIT-001', datetime.datetime(2026, 9, 29, 0, 0), 'InterimCoverageCL', 'Email to dan Email CC', 'Email to dan Email CC berbeda dengan yang ada pada XML\n\nterkirim hanya ke 1 Email saja \n\npada XML tercatat :\n <sentTo>kalisasuhardi@gmail.com</sentTo>\n<sentCc>rozi.sepriadi@astralife.co.id,kalisa.suhardi@astralife.co.id</sentCc>\n\ntp pada email terkirim hanya ke emailrozi.sepriadi@astralife.co.id ', 'Email terkirim sesuai dengan emang yang terdaftar pada XML', None, 'Kalisa', 'RDS Tim', 'Functionality', 'MEDIUM', 'OPEN', None, None, None, None, None)
+  Row 3: ('SIT-002', datetime.datetime(2026, 9, 29, 0, 0), 'BILLNOT02', 'Drop XML yang sama / Rename XML', 'XML Tidak terproses', 'Seharusnya XML tetap diproses', None, 'Rony', 'RDS Tim', 'Functionality', 'MEDIUM', 'OPEN', None, None, None, None, None)
+  Row 4: ('SIT-003', datetime.datetime(2026, 9, 29, 0, 0), 'NOTOWC10 ', 'layout wording bergeser ', '- Terima kasih atas kepercayaan yang telah Anda berikan kepada kami, PT ASURANSI JIWA ASTRA, sebagai penyedia\nlayanan asuransi jiwa bagi Anda dan keluarga.ΓåÆ posisi wording naik dari yang sebelumnya\n- alamat bergabung dengan baris nama perusahaan', '- Terima kasih atas kepercayaan yang telah Anda berikan kepada kami, PT ASURANSI JIWA ASTRA, sebagai\npenyedia layanan asuransi jiwa bagi Anda dan keluarga.ΓåÆ posisi wording naik dari yang sebelumnya\n- alamat tidak bergabung dengan baris nama perusahaan', None, 'Rangga', 'RDS Tim', 'Layout', 'LOW', 'OPEN', None, None, None, None, None)
+  Row 5: ('SIT-004', datetime.datetime(2026, 9, 29, 0, 0), 'PREAMNA3', 'File tidak terbentuk di filenet\n,dan untuk wording di pdf bergeser dari wording tamplate ', 'File tidak terbentuk di filenet,karna contract_no tidak terbentuk di meta data  (null)\n\ndan untuk wording di pdf bergeser dari wording tamplate ', 'no polis terbentuk pada file net dan juga pada meta data', None, 'Rangga', 'RDS Tim', 'Functionality', 'MEDIUM', 'OPEN', None, None, None, None, None)
+  Row 6: ('SIT-005', datetime.datetime(2026, 9, 29, 0, 0), 'YGEXPRCP', 'metadata Response masih belum sesuai', "- field 'Template_id' masih ada\n- field 'path output' masih null", "- harusnya 'Template_name'\n- harus sesuai dengan meta data request ", None, 'Shafira', 'RDS Tim', 'Functionality', 'MEDIUM', 'OPEN', None, None, None, None, None)
+  Row 7: ('SIT-006', datetime.datetime(2026, 9, 29, 0, 0), 'YGCLPRCP-RC', 'metadata Response masih belum sesuai', "- field 'Template_id' masih ada\n- field 'path output' masih null\n- tidak terima email", "- harusnya 'Template_name'\n- harus sesuai dengan meta data request ", None, 'Shafira', 'RDS Tim', 'Functionality', 'MEDIUM', 'OPEN', None, None, None, None, None)
+  Row 8: ('SIT-007', datetime.datetime(2026, 9, 29, 0, 0), 'NOTEDR01', 'Tidak menampilkan wording pada tamplate PDF', 'PDF tidak menampilkan "pemilikRekening", sedangkan pada XML field tersebut terisi ', 'PDF menampilkan "pemilikRekening", sedangkan pada XML field tersebut terisi ', None, 'Rangga', 'RDS Tim', 'Wording', 'MEDIUM', 'OPEN', None, None, None, None, None)
+  Row 9: ('SIT-008', datetime.datetime(2026, 9, 29, 0, 0), 'NFL01 / Template Lain', 'Drop XML', 'Beberapa kali testing drop XML, RDS mengirimkan file berulang bahkan ada yang sampai 7x dengan file yang sama persis untuk satu request', 'Transaksi berjalan normal', None, 'Rony\nGita', 'RDS Tim', 'Functionality', 'CRITICAL', 'OPEN', None, None, None, None, None)
+  Row 10: ('SIT-009', datetime.datetime(2026, 9, 29, 0, 0), 'YGCLPRCP-FP', 'metadata Response masih belum sesuai', "- field 'Template_id' masih ada\n- field 'path output' masih null\n- tidak terima email", "- harusnya 'Template_name'\n- harus sesuai dengan meta data request ", None, 'Shafira', 'RDS Tim', 'Functionality', 'MEDIUM', 'OPEN', None, None, None, None, None)
+  Row 11: ('SIT-010', datetime.datetime(2026, 9, 29, 0, 0), 'ChangeComponent', 'metadata belum sesuai', 'path_output terisi', 'seharusnya path_output tidak terisi', None, 'Gita', 'RDS Tim', 'Functionality', 'MEDIUM', 'CLOSED', None, None, None, 'hasil proses XML tgl 28/09 path_output terisi\nhasil proses XML tgl 28/09 path_output sudah tidak terisi', None)
+  Row 12: ('SIT-011', datetime.datetime(2026, 9, 30, 0, 0), 'ChangeComponent', 'wording email belum sesuai', 'beberapa wording pada email belum sesuai (detail pada evidence):\n-  Bapak/Ibu seharusnya sesuai salutation\n-  Terdapat wording yang seharusnya dibuat pada baris baru\n-  Terdapat koma yang double\n- Terdapat wording yang seharusnya italic', 'seharusnya wording pada email sesuai', None, 'Gita', 'RDS Tim', 'Wording', 'MEDIUM', 'OPEN', None, None, None, None, None)
+  Row 13: ('SIT-012', datetime.datetime(2026, 9, 30, 0, 0), 'iPayorchange', 'Wording email belum sesuai', 'Beberapa wording pada email belum sesuai (detail pada evidence):\n- Wording Polis Lama seharusnya Polis Baru\n- Terdapat wording yang seharusnya dibuat pada baris baru\n- Terdapat koma yang double\n- Terdapat titik yang kurang\n- Terdapat wording yang seharusnya italic', 'Seharusnya wording pada email sesuai', '\xa0', 'Humai', 'RDS Tim', 'Layout', 'LOW', 'OPEN', '\xa0', '\xa0', '\xa0', '\xa0', '\xa0')
+  Row 14: ('SIT-013', datetime.datetime(2026, 10, 1, 0, 0), 'iPreMaturity', 'wording email belum sesuai', 'beberapa wording pada email belum sesuai (detail pada evidence)', 'seharusnya wording pada email sesuai', None, 'Gita', 'RDS Tim', 'Wording', 'LOW', 'OPEN', None, None, None, None, None)
+  Row 15: ('SIT-014', datetime.datetime(2026, 10, 1, 0, 0), 'RPU', 'wording email belum sesuai', 'beberapa wording pada email belum sesuai (detail pada evidence)', 'seharusnya wording pada email sesuai', None, 'Gita', 'RDS Tim', 'Wording', 'LOW', 'OPEN', None, None, None, None, None)
+
+===== SHEET: Evidence =====
+Dimensions: A1:C60, Max row: 60, Max col: 3
+--- First 15 rows ---
+  Row 1: ('Log ID', 'Image Evidence', None)
+  Row 2: ('SIT-001', None, None)
+  Row 3: ('SIT-003', 'actual :                                                                                                      expected :', None)
+  Row 5: ('SIT-005', None, None)
+  Row 6: ('SIT-006', None, None)
+  Row 7: ('SIT-007', None, None)
+  Row 8: ('SIT-008', None, None)
+  Row 9: ('SIT-011', None, None)
+  Row 10: ('SIT-012', None, None)
+  Row 11: ('SIT-013', None, None)
+  Row 12: ('SIT-014', '#VALUE!', None)
+  Row 13: ('SIT-015', None, None)
+  Row 14: ('SIT-016', None, None)
+  Row 15: ('SIT-017', None, None)
+
+===== SHEET: Review Doc =====
+Dimensions: A1:R32, Max row: 32, Max col: 18
+--- First 15 rows ---
+  Row 1: ('Log ID', 'Raised Date', 'Template', 'Process / Scenario', 'Issue Description', 'Expected result', 'Policy No.', 'QA', 'Assign to', 'Category', 'Severity', 'Status', 'Target Completion Date', 'Retest Date', 'Testing Result', 'Remark', 'Dev/BA Comments', 'Evidence')
+  Row 2: ('SIT-001', datetime.datetime(2026, 10, 5, 0, 0), 'ROPLTR01 (Sample 1)', 'Compare tango samples & RDS Result', 'Sample 1 pada Result RDS hanya 1 halaman , formulir tidak ter-attach', 'Terdapat 2 halaman, ', '4999999126_1', 'Shafira', 'RDS Tim', 'Paging', 'HIGH', 'OPEN', None, None, None, None, None, None)
+  Row 3: ('SIT-002', datetime.datetime(2026, 10, 5, 0, 0), 'INVCLMLT (Sample 2)', 'Compare tango samples & RDS Result', 'kurang kurung tutup pada "Nama Peserta (Tertanggung)', 'harusnya ada kurung tutup', 'AK9999999960_2', 'Kalisa', 'RDS Tim', 'Wording', 'LOW', 'OPEN', None, None, None, None, None, None)
+  Row 4: ('SIT-003', datetime.datetime(2026, 10, 5, 0, 0), 'INVCLMLT (Sample 4)', 'Compare tango samples & RDS Result', '1. kurang kurung tutup pada "Nama Peserta (Tertanggung)\n2. Format tanggal berbeda dari Template sample, format 02/08/2025 harusnya 02 Agustus 2025', "1. harusnya ada kurung tutup\n2. Format Tanggal Harusnya '02 Agustus 2025'", 'AK9999999960_2', 'Kalisa', 'RDS Tim', 'Wording', 'LOW', 'OPEN', None, None, None, None, None, None)
+  Row 5: ('SIT-004', datetime.datetime(2026, 10, 5, 0, 0), 'iBillingReminder (Sample 6)', 'Compare tango samples & RDS Result', 'Wording pada letter ".....perlu Anda bayarkan"', 'Wording pada letter seharusnya "...akan didebet"', 'HS99999999165_6', 'Gita', 'RDS Tim', 'Signature', 'LOW', 'OPEN', None, None, None, None, None, None)
+  Row 6: ('SIT-005', datetime.datetime(2026, 10, 5, 0, 0), 'iAutoRenewal', 'Compare tango samples & RDS Result', 'Terdetect font Helvetica', 'Semua font Roboto', '- TK99999999161_1\n- FP99999999161_2\n- TK99999999161_3\n- FP99999999161_4', 'Gita', 'RDS Tim', 'Font', 'MEDIUM', 'OPEN', None, None, None, None, None, None)
+  Row 7: ('SIT-006', datetime.datetime(2026, 10, 5, 0, 0), 'LAPSE03', 'Compare tango samples & RDS Result', 'Nomor Telp tidak sesuai, di tulis 1-500-AVA (282)', 'Seharusnya di tulis 1-500-282', '4999999069_1', 'Kalisa', 'RDS Tim', 'Wording', 'LOW', 'OPEN', None, None, None, None, None, None)
+  Row 8: ('SIT-007', datetime.datetime(2026, 10, 5, 0, 0), 'POLSCH31', 'Compare tango samples & RDS Result', 'Untuk Certificate RDS banyak yang tidak rata kanan', 'Certificate secara layout sudah OK, rata kanan dan rapih', '41214857\n41308564', 'Rony', 'RDS Tim', 'Layout', 'MEDIUM', 'OPEN', None, None, None, None, None, None)
+  Row 9: ('SIT-008', datetime.datetime(2026, 10, 5, 0, 0), 'iAutoRenewal (Sample 4)', 'Compare tango samples & RDS Result', 'Tanda tangan tidak sesuai dan revisi nama penanda tangan pada sample', 'Tanda tangan menggunakan tanda tangan dok Sharin dan revisi nama menggunakan dok Sharin', 'FP99999999161_4', 'Gita', 'RDS Tim', 'Signature', 'MEDIUM', 'OPEN', None, None, None, None, None, None)
+  Row 10: ('SIT-009', datetime.datetime(2026, 10, 5, 0, 0), 'RIPLAY_CREDITLIFE Sample 1', 'Compare tango samples & RDS Result', 'Wording (terlampir)', None, None, 'Shafira', 'RDS Tim', 'Wording', 'MEDIUM', 'OPEN', None, None, None, None, None, None)
+  Row 11: ('SIT-010', datetime.datetime(2026, 10, 5, 0, 0), 'LTRACC21', 'Compare tango samples & RDS Result', 'halaman  1 dan halaman 3 : space baris selanjutnya untuk kalimat yang sama terlalu rapat,  dan kalimat tidak rata kanan\nhalaman 4 : spasi pada awal baris sesuai dengan tango sample', None, None, 'Rangga', 'RDS Tim', 'Layout', 'LOW', 'OPEN', None, None, None, None, None, None)
+  Row 12: ('SIT-011', datetime.datetime(2026, 10, 5, 0, 0), 'RIPLAY_CREDITLIFE Sample 2', 'Compare tango samples & RDS Result', 'Wording (terlampir)', None, None, 'Shafira', 'RDS Tim', 'Wording', 'MEDIUM', 'OPEN', None, None, None, None, None, None)
+  Row 13: ('SIT-012', datetime.datetime(2026, 10, 5, 0, 0), 'RIPLAY_CREDITLIFE Sample 3', 'Compare tango samples & RDS Result', 'Wording (terlampir)', None, None, 'Shafira', 'RDS Tim', 'Wording', 'MEDIUM', 'OPEN', None, None, None, None, None, None)
+  Row 14: ('SIT-013', datetime.datetime(2026, 10, 5, 0, 0), 'RIPLAY_CREDITLIFE (Sample 8)', 'Compare tango samples & RDS Result', 'Wording tidak sesuai', 'Wording sesuai', 99999908, 'Gita', 'RDS Tim', 'Wording', 'LOW', 'OPEN', None, None, None, None, None, None)
+  Row 15: ('SIT-014', datetime.datetime(2026, 10, 5, 0, 0), 'RIPLAY_CREDITLIFE (Sample 9)', 'Compare tango samples & RDS Result', 'Wording tidak sesuai', 'Wording sesuai', 99999909, 'Gita', 'RDS Tim', 'Wording', 'LOW', 'OPEN', None, None, None, None, None, None)
+
+===== SHEET: Summary =====
+Dimensions: A10:B14, Max row: 14, Max col: 2
+--- First 15 rows ---
+  Row 10: ('Severity', 'Count of Log ID')
+  Row 11: ('CRITICAL', 1)
+  Row 12: ('MEDIUM', 12)
+  Row 13: ('LOW', 22)
+  Row 14: ('Grand Total', 35)
