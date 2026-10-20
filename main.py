@@ -1,6 +1,7 @@
 import io
 import re
 import os
+import math
 import zipfile
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -720,6 +721,38 @@ def _clear_all_font_refs(obj_str: str) -> str:
     result = _clear_font_dict(result)
     return result
 
+def _dir_to_rotate(dx: float, dy: float) -> int:
+    angle = math.degrees(math.atan2(dy, dx))
+    rot = round(-angle / 90.0) * 90 % 360
+    return int(rot)
+
+def _point_from_uv(u: float, v: float, dx: float, dy: float) -> fitz.Point:
+    px = u * dx - v * dy
+    py = u * dy + v * dx
+    return fitz.Point(px, py)
+
+def _rect_from_uv(u0: float, u1: float, v0: float, v1: float, dx: float, dy: float) -> fitz.Rect:
+    corners = [
+        _point_from_uv(u0, v0, dx, dy),
+        _point_from_uv(u1, v0, dx, dy),
+        _point_from_uv(u0, v1, dx, dy),
+        _point_from_uv(u1, v1, dx, dy)
+    ]
+    xs = [c.x for c in corners]
+    ys = [c.y for c in corners]
+    return fitz.Rect(min(xs), min(ys), max(xs), max(ys))
+
+def _get_uv_bbox(bbox, dx: float, dy: float) -> tuple[float, float, float, float]:
+    corners = [
+        (bbox[0], bbox[1]),
+        (bbox[2], bbox[1]),
+        (bbox[0], bbox[3]),
+        (bbox[2], bbox[3])
+    ]
+    cus = [cx * dx + cy * dy for cx, cy in corners]
+    cvs = [cx * (-dy) + cy * dx for cx, cy in corners]
+    return (min(cus), max(cus), min(cvs), max(cvs))
+
 def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[bytes, int]:
     font_cfg = get_target_font(target_font)
     family_clean = font_cfg['family'].replace(' ', '')
@@ -762,6 +795,10 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
             if b.get("type") != 0:
                 continue
             for line in b.get("lines", []):
+                l_dir = line.get("dir", (1.0, 0.0))
+                mag = math.hypot(l_dir[0], l_dir[1])
+                dx, dy = (l_dir[0] / mag, l_dir[1] / mag) if mag > 0 else (1.0, 0.0)
+                rot = _dir_to_rotate(dx, dy)
                 for s in line.get("spans", []):
                     st = s.get("text", "")
                     if st.strip():
@@ -773,6 +810,12 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                         if 'Nama Peserta (Tertanggung' in st and not st.endswith(')'):
                             st = re.sub(r'Nama\s+Peserta\s*\(Tertanggung(?!\))', 'Nama Peserta (Tertanggung)', st)
                         s["text"] = st
+                        s["dir"] = (dx, dy)
+                        s["rot"] = rot
+                        ox, oy = s["origin"]
+                        s["origin_u"] = ox * dx + oy * dy
+                        s["origin_v"] = ox * (-dy) + oy * dx
+                        s["bbox_uv"] = _get_uv_bbox(s["bbox"], dx, dy)
                         raw_spans.append(s)
 
         superseded_ids = set()
@@ -790,7 +833,13 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                             superseded_ids.add(id(s1))
                             break
 
+        orig_page_rot = page.rotation
+        if orig_page_rot != 0:
+            page.set_rotation(0)
         page_pix = page.get_pixmap(dpi=72)
+        if orig_page_rot != 0:
+            page.set_rotation(orig_page_rot)
+
         pix_w, pix_h = page_pix.width, page_pix.height
         pix_samples = page_pix.samples
         for s in raw_spans:
@@ -813,16 +862,19 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                 if len(s_cols) <= 2:
                     superseded_ids.add(id(s))
 
-        x1_counts = {}
+        end_u_counts = {}
         for b in d.get("blocks", []):
             if b.get("type") != 0:
                 continue
             for l in b.get("lines", []):
-                txt = " ".join(s.get("text", "") for s in l.get("spans", []) if id(s) not in superseded_ids).strip()
+                sps = [s for s in l.get("spans", []) if id(s) not in superseded_ids]
+                txt = " ".join(s.get("text", "") for s in sps).strip()
                 if len(txt.split()) >= 3 and not txt.endswith(":"):
-                    x1_val = round(l["bbox"][2], 0)
-                    x1_counts[x1_val] = x1_counts.get(x1_val, 0) + 1
-        common_margins = [k for k, v in x1_counts.items() if v >= 4]
+                    dx, dy = sps[0]["dir"] if sps else (1.0, 0.0)
+                    u_bbox = _get_uv_bbox(l["bbox"], dx, dy)
+                    u1_val = round(u_bbox[1], 0)
+                    end_u_counts[u1_val] = end_u_counts.get(u1_val, 0) + 1
+        common_margins = [k for k, v in end_u_counts.items() if v >= 4]
 
         all_page_groups = []
         for b in d.get("blocks", []):
@@ -831,28 +883,33 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
             for l in b.get("lines", []):
                 sps = [s for s in l.get("spans", []) if s.get("text", "").strip() and id(s) not in superseded_ids]
                 if sps:
-                    sps.sort(key=lambda s: s["origin"][0])
+                    sps.sort(key=lambda s: s["origin_u"])
+                    dx, dy = sps[0]["dir"]
                     all_page_groups.append({
-                        "baseline_y": round(sps[0]["origin"][1], 1),
-                        "bbox": tuple(l["bbox"]),
-                        "spans": sps
+                        "baseline_v": round(sps[0]["origin_v"], 1),
+                        "bbox_uv": _get_uv_bbox(l["bbox"], dx, dy),
+                        "spans": sps,
+                        "dir": (dx, dy),
+                        "rot": sps[0]["rot"]
                     })
 
-        all_page_groups.sort(key=lambda g: (g["baseline_y"], g["bbox"][0]))
+        all_page_groups.sort(key=lambda g: (g["baseline_v"], g["bbox_uv"][0]))
 
         page_bullet_indents = {}
         for gi, g in enumerate(all_page_groups):
             sps = g["spans"]
             t0 = sps[0].get("text", "").strip()
             if _is_bullet_span(t0, sps[0].get("font", "")) and len(sps) >= 2:
-                p_key = round(sps[0]["origin"][0], 0)
+                p_key = (round(sps[0]["origin_u"], 0), g["rot"])
                 for next_g in all_page_groups[gi+1:]:
+                    if next_g["rot"] != g["rot"]:
+                        continue
                     nt0 = next_g["spans"][0].get("text", "").strip()
                     if _is_bullet_span(nt0, next_g["spans"][0].get("font", "")):
                         break
-                    cont_x0 = round(next_g["bbox"][0], 1)
-                    if cont_x0 > sps[0]["bbox"][2] + 1.0:
-                        page_bullet_indents.setdefault(p_key, []).append(cont_x0)
+                    cont_u0 = round(next_g["bbox_uv"][0], 1)
+                    if cont_u0 > sps[0]["bbox_uv"][1] + 1.0:
+                        page_bullet_indents.setdefault(p_key, []).append(cont_u0)
                         break
 
         page_std_indent = {}
@@ -873,48 +930,53 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
 
             grouped_lines = []
             for l in lines:
-                spans = [s for s in l.get("spans", []) if s.get("text", "").strip() and id(s) not in superseded_ids]
-                if not spans:
+                sps = [s for s in l.get("spans", []) if s.get("text", "").strip() and id(s) not in superseded_ids]
+                if not sps:
                     continue
-                base_y = round(spans[0]["origin"][1], 1)
+                dx, dy = sps[0]["dir"]
+                rot = sps[0]["rot"]
+                base_v = round(sps[0]["origin_v"], 1)
+                l_uv = _get_uv_bbox(l["bbox"], dx, dy)
                 merged = False
                 for g in grouped_lines:
-
-
-                    if abs(g["baseline_y"] - base_y) <= 1.2:
-                        h_gap = max(0, max(g["bbox"][0], l["bbox"][0]) - min(g["bbox"][2], l["bbox"][2]))
-                        if h_gap <= 15.0:
+                    if g["rot"] == rot and abs(g["baseline_v"] - base_v) <= 1.2:
+                        u_gap = max(0, max(g["bbox_uv"][0], l_uv[0]) - min(g["bbox_uv"][1], l_uv[1]))
+                        if u_gap <= 15.0:
                             g["lines"].append(l)
-                            g["spans"].extend(spans)
-                            g["bbox"] = (
-                                min(g["bbox"][0], l["bbox"][0]),
-                                min(g["bbox"][1], l["bbox"][1]),
-                                max(g["bbox"][2], l["bbox"][2]),
-                                max(g["bbox"][3], l["bbox"][3])
+                            g["spans"].extend(sps)
+                            g["bbox_uv"] = (
+                                min(g["bbox_uv"][0], l_uv[0]),
+                                max(g["bbox_uv"][1], l_uv[1]),
+                                min(g["bbox_uv"][2], l_uv[2]),
+                                max(g["bbox_uv"][3], l_uv[3])
                             )
                             merged = True
                             break
                 if not merged:
                     grouped_lines.append({
-                        "baseline_y": base_y,
+                        "baseline_v": base_v,
                         "lines": [l],
-                        "spans": list(spans),
-                        "bbox": tuple(l["bbox"])
+                        "spans": list(sps),
+                        "bbox_uv": l_uv,
+                        "dir": (dx, dy),
+                        "rot": rot
                     })
 
             for g in grouped_lines:
-                g["spans"].sort(key=lambda s: s["origin"][0])
+                g["spans"].sort(key=lambda s: s["origin_u"])
 
             if not grouped_lines:
                 continue
 
-            block_max_x1 = max(g["bbox"][2] for g in grouped_lines)
-            aligned_right_count = sum(1 for g in grouped_lines if abs(g["bbox"][2] - block_max_x1) <= 2.5)
+            block_max_u1 = max(g["bbox_uv"][1] for g in grouped_lines)
+            aligned_end_count = sum(1 for g in grouped_lines if abs(g["bbox_uv"][1] - block_max_u1) <= 2.5)
 
             for gi, g in enumerate(grouped_lines):
                 spans = g["spans"]
                 if not spans:
                     continue
+                dx, dy = g["dir"]
+                rot = g["rot"]
 
                 prefix_span = None
                 body_spans = spans
@@ -926,38 +988,39 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                         bi = 1
                         while bi < len(spans) and not spans[bi].get("text", "").strip():
                             bi += 1
-                        if bi < len(spans) and (spans[bi]["origin"][0] - s0["bbox"][2]) > 2.0:
+                        if bi < len(spans) and (spans[bi]["origin_u"] - s0["bbox_uv"][1]) > 2.0:
                             prefix_span = s0
                             body_spans = spans[bi:]
 
-                orig_body_x0 = body_spans[0]["origin"][0] if body_spans else g["bbox"][0]
-                body_x0 = orig_body_x0
+                orig_body_u0 = body_spans[0]["origin_u"] if body_spans else g["bbox_uv"][0]
+                body_u0 = orig_body_u0
 
                 if prefix_span and body_spans:
-                    p_key = round(prefix_span["origin"][0], 0)
+                    p_key = (round(prefix_span["origin_u"], 0), rot)
                     cand_indent = None
                     for next_g in grouped_lines[gi+1:]:
+                        if next_g["rot"] != rot:
+                            continue
                         n_sps = next_g["spans"]
                         if not n_sps:
                             continue
                         nt0 = n_sps[0].get("text", "").strip()
                         if _is_bullet_span(nt0, n_sps[0].get("font", "")):
                             break
-                        c_x0 = round(next_g["bbox"][0], 1)
-                        if c_x0 > prefix_span["bbox"][2] + 1.0:
-                            cand_indent = c_x0
+                        c_u0 = round(next_g["bbox_uv"][0], 1)
+                        if c_u0 > prefix_span["bbox_uv"][1] + 1.0:
+                            cand_indent = c_u0
                             break
                     if cand_indent is None:
                         cand_indent = page_std_indent.get(p_key)
 
-                    if cand_indent is not None and cand_indent > prefix_span["bbox"][2] + 1.0:
-                        if abs(cand_indent - orig_body_x0) <= 12.0:
-                            body_x0 = cand_indent
+                    if cand_indent is not None and cand_indent > prefix_span["bbox_uv"][1] + 1.0:
+                        if abs(cand_indent - orig_body_u0) <= 12.0:
+                            body_u0 = cand_indent
 
-                target_x1 = g["bbox"][2]
-                target_w = target_x1 - body_x0
-                is_right_aligned = (aligned_right_count >= 2 and abs(target_x1 - block_max_x1) <= 2.5) or any(abs(target_x1 - cm) <= 2.5 for cm in common_margins)
-
+                target_u1 = g["bbox_uv"][1]
+                target_w = target_u1 - body_u0
+                is_right_aligned = (aligned_end_count >= 2 and abs(target_u1 - block_max_u1) <= 2.5) or any(abs(target_u1 - cm) <= 2.5 for cm in common_margins)
 
                 words_data = []
                 for s in body_spans:
@@ -976,13 +1039,13 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                         is_bold = True
                     is_italic = bool(flags & 2) or 'italic' in font_str or 'oblique' in font_str
                     if is_bold and is_italic and os.path.exists(bolditalic_path):
-                        fn, ff = 'Roboto-BoldItalic', bolditalic_path
+                        fn, ff = f'{family_clean}-BoldItalic', bolditalic_path
                     elif is_bold and os.path.exists(bold_path):
-                        fn, ff = 'Roboto-Bold', bold_path
+                        fn, ff = f'{family_clean}-Bold', bold_path
                     elif is_italic and os.path.exists(italic_path):
-                        fn, ff = 'Roboto-Italic', italic_path
+                        fn, ff = f'{family_clean}-Italic', italic_path
                     elif os.path.exists(reg_path):
-                        fn, ff = 'Roboto-Regular', reg_path
+                        fn, ff = f'{family_clean}-Regular', reg_path
                     else:
                         fn, ff = 'helv', None
                     sf_obj = get_font_obj(ff)
@@ -993,14 +1056,13 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                         w_len = sf_obj.text_length(w, fontsize=sz) if sf_obj else sz * 0.5 * len(w)
                         words_data.append({
                             'word': w, 'fn': fn, 'ff': ff, 'sz': sz, 'color': color,
-                            'w': w_len, 'y': s['origin'][1], 'f_obj': sf_obj
+                            'w': w_len, 'origin_u': s['origin_u'], 'origin_v': s['origin_v'], 'f_obj': sf_obj
                         })
 
                 has_square = any(_is_square_bullet(s.get("text", "").strip(), s.get("font", "").lower()) for s in body_spans)
                 total_words = len(words_data)
                 total_words_w = sum(wd['w'] for wd in words_data)
                 default_sp = words_data[0]['f_obj'].text_length(' ', fontsize=words_data[0]['sz']) if words_data else 2.0
-
 
                 body_scale = 1.0
                 if total_words >= 2 and target_w > 0:
@@ -1018,8 +1080,8 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                 is_label = full_line_txt.endswith(":") or full_line_txt.endswith("?")
                 is_centered_block = False
                 if len(grouped_lines) >= 2:
-                    centers = [(g_line["bbox"][0] + g_line["bbox"][2]) / 2.0 for g_line in grouped_lines]
-                    widths = [g_line["bbox"][2] - g_line["bbox"][0] for g_line in grouped_lines]
+                    centers = [(g_line["bbox_uv"][0] + g_line["bbox_uv"][1]) / 2.0 for g_line in grouped_lines]
+                    widths = [g_line["bbox_uv"][1] - g_line["bbox_uv"][0] for g_line in grouped_lines]
                     if (max(centers) - min(centers) <= 2.5) and (max(widths) - min(widths) >= 4.0):
                         is_centered_block = True
                 can_justify = False
@@ -1031,7 +1093,10 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
 
                 def add_prefix_span(p_span):
                     p_txt = p_span.get("text", "").strip()
-                    p_orig = fitz.Point(p_span["origin"])
+                    p_orig_u = p_span["origin_u"]
+                    p_orig_v = p_span["origin_v"]
+                    p_dx, p_dy = p_span["dir"]
+                    p_rot = p_span["rot"]
                     p_sz = p_span.get("size", 10.0)
                     p_c = p_span.get("color", 0)
                     p_cr, p_cg, p_cb = (((p_c >> 16) & 255) / 255.0, ((p_c >> 8) & 255) / 255.0, (p_c & 255) / 255.0)
@@ -1041,7 +1106,7 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                     if _is_square_bullet(p_txt, p_fstr):
                         bw = p_sz * 0.38
                         bh = p_sz * 0.38
-                        r = fitz.Rect(p_orig.x, p_orig.y - p_sz * 0.48, p_orig.x + bw, p_orig.y - p_sz * 0.48 + bh)
+                        r = _rect_from_uv(p_orig_u, p_orig_u + bw, p_orig_v - p_sz * 0.48, p_orig_v - p_sz * 0.48 + bh, p_dx, p_dy)
                         elements_to_draw.append(('rect', r, p_col))
                     else:
                         for rb in ROUND_BULLETS:
@@ -1049,42 +1114,44 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                         p_bold = bool(p_flags & 16) or any(w in p_fstr for w in ['bold', 'medium', 'semibold', 'semi-bold', 'demi', 'black', 'heavy'])
                         p_italic = bool(p_flags & 2) or 'italic' in p_fstr or 'oblique' in p_fstr
                         if p_bold and p_italic and os.path.exists(bolditalic_path):
-                            p_fn, p_ff = 'Roboto-BoldItalic', bolditalic_path
+                            p_fn, p_ff = f'{family_clean}-BoldItalic', bolditalic_path
                         elif p_bold and os.path.exists(bold_path):
-                            p_fn, p_ff = 'Roboto-Bold', bold_path
+                            p_fn, p_ff = f'{family_clean}-Bold', bold_path
                         elif p_italic and os.path.exists(italic_path):
-                            p_fn, p_ff = 'Roboto-Italic', italic_path
+                            p_fn, p_ff = f'{family_clean}-Italic', italic_path
                         elif os.path.exists(reg_path):
-                            p_fn, p_ff = 'Roboto-Regular', reg_path
+                            p_fn, p_ff = f'{family_clean}-Regular', reg_path
                         else:
                             p_fn, p_ff = 'helv', None
-                        elements_to_draw.append(('text', p_orig, p_txt, p_fn, p_ff, p_sz, p_col))
+                        pt = _point_from_uv(p_orig_u, p_orig_v, p_dx, p_dy)
+                        elements_to_draw.append(('text', pt, p_txt, p_fn, p_ff, p_sz, p_col, p_rot))
 
                 if can_justify:
                     if prefix_span:
                         add_prefix_span(prefix_span)
-                    curr_x = body_x0
+                    curr_u = body_u0
                     gaps = total_words - 1
                     gap_w = (target_w - total_words_w) / gaps
                     for i, wd in enumerate(words_data):
-                        elements_to_draw.append(('text', fitz.Point(curr_x, wd['y']), wd['word'], wd['fn'], wd['ff'], wd['sz'], wd['color']))
+                        word_pt = _point_from_uv(curr_u, wd['origin_v'], dx, dy)
+                        elements_to_draw.append(('text', word_pt, wd['word'], wd['fn'], wd['ff'], wd['sz'], wd['color'], rot))
                         if i < gaps:
-                            gap_start = curr_x + wd['w']
-                            sp_x = gap_start + (gap_w - default_sp) / 2.0
-                            elements_to_draw.append(('text', fitz.Point(sp_x, wd['y']), ' ', wd['fn'], wd['ff'], wd['sz'], wd['color']))
-                        curr_x += wd['w'] + gap_w
+                            gap_start_u = curr_u + wd['w']
+                            sp_u = gap_start_u + (gap_w - default_sp) / 2.0
+                            sp_pt = _point_from_uv(sp_u, wd['origin_v'], dx, dy)
+                            elements_to_draw.append(('text', sp_pt, ' ', wd['fn'], wd['ff'], wd['sz'], wd['color'], rot))
+                        curr_u += wd['w'] + gap_w
                     continue
-
 
                 if prefix_span:
                     add_prefix_span(prefix_span)
                     draw_spans = body_spans
                     avail_w = target_w
-                    base_start_x = body_x0
+                    base_start_u = body_u0
                 else:
                     draw_spans = spans
-                    avail_w = g["bbox"][2] - g["bbox"][0]
-                    base_start_x = g["bbox"][0]
+                    avail_w = g["bbox_uv"][1] - g["bbox_uv"][0]
+                    base_start_u = g["bbox_uv"][0]
 
                 rob_body_w = 0.0
                 for s in draw_spans:
@@ -1122,14 +1189,17 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                 if avail_w > 0 and rob_body_w > avail_w * 1.005:
                     line_scale = max(0.70, avail_w / rob_body_w)
 
-                body_shift_x = (body_x0 - orig_body_x0) if prefix_span else 0.0
-                prev_end_x = 0
-                prev_orig_x1 = 0
+                body_shift_u = (body_u0 - orig_body_u0) if prefix_span else 0.0
+                prev_end_u = 0
+                prev_orig_u1 = 0
                 for s in draw_spans:
                     text = s.get("text", "")
                     if not text:
                         continue
-                    origin = fitz.Point(s["origin"][0] + body_shift_x, s["origin"][1])
+                    s_dx, s_dy = s["dir"]
+                    s_rot = s["rot"]
+                    origin_u = s["origin_u"] + body_shift_u
+                    origin_v = s["origin_v"]
                     size = s["size"] * line_scale
                     c = s.get("color", 0)
                     cr, cg, cb = (((c >> 16) & 255) / 255.0, ((c >> 8) & 255) / 255.0, (c & 255) / 255.0)
@@ -1161,55 +1231,58 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                     if clean_t and _is_square_bullet(clean_t, font_str):
                         bw = size * 0.38
                         bh = size * 0.38
-                        r = fitz.Rect(origin.x, origin.y - size * 0.48, origin.x + bw, origin.y - size * 0.48 + bh)
+                        r = _rect_from_uv(origin_u, origin_u + bw, origin_v - size * 0.48, origin_v - size * 0.48 + bh, s_dx, s_dy)
                         elements_to_draw.append(('rect', r, color))
-                        prev_end_x = origin.x + bw
-                        prev_orig_x1 = s["bbox"][2]
+                        prev_end_u = origin_u + bw
+                        prev_orig_u1 = s["bbox_uv"][1]
                         continue
 
                     if clean_t and any(_is_square_bullet(ch, font_str) for ch in text):
-                        curr_x = origin.x
-                        curr_y = origin.y
+                        curr_u = origin_u
+                        curr_v = origin_v
                         buf = ''
                         for ch in text:
                             if _is_square_bullet(ch, font_str):
                                 if buf:
-                                    elements_to_draw.append(('text', fitz.Point(curr_x, curr_y), buf, fn, ff, size, color))
-                                    curr_x += f_obj.text_length(buf, fontsize=size) if f_obj else size * 0.5 * len(buf)
+                                    pt = _point_from_uv(curr_u, curr_v, s_dx, s_dy)
+                                    elements_to_draw.append(('text', pt, buf, fn, ff, size, color, s_rot))
+                                    curr_u += f_obj.text_length(buf, fontsize=size) if f_obj else size * 0.5 * len(buf)
                                     buf = ''
                                 bw = size * 0.38
                                 bh = size * 0.38
-                                r = fitz.Rect(curr_x, curr_y - size * 0.48, curr_x + bw, curr_y - size * 0.48 + bh)
+                                r = _rect_from_uv(curr_u, curr_u + bw, curr_v - size * 0.48, curr_v - size * 0.48 + bh, s_dx, s_dy)
                                 elements_to_draw.append(('rect', r, color))
-                                curr_x += bw + size * 0.15
+                                curr_u += bw + size * 0.15
                             else:
                                 buf += ch
                         if buf:
-                            elements_to_draw.append(('text', fitz.Point(curr_x, curr_y), buf, fn, ff, size, color))
-                            curr_x += f_obj.text_length(buf, fontsize=size) if f_obj else size * 0.5 * len(buf)
-                        prev_end_x = curr_x
-                        prev_orig_x1 = s["bbox"][2]
+                            pt = _point_from_uv(curr_u, curr_v, s_dx, s_dy)
+                            elements_to_draw.append(('text', pt, buf, fn, ff, size, color, s_rot))
+                            curr_u += f_obj.text_length(buf, fontsize=size) if f_obj else size * 0.5 * len(buf)
+                        prev_end_u = curr_u
+                        prev_orig_u1 = s["bbox_uv"][1]
                         continue
 
                     sp_char_w = f_obj.text_length(' ', fontsize=size) if f_obj else size * 0.25
-                    orig_gap = (s["bbox"][0] - prev_orig_x1) if prev_orig_x1 > 0 else 999.0
-                    if prev_end_x > 0:
+                    orig_gap = (s["bbox_uv"][0] - prev_orig_u1) if prev_orig_u1 > 0 else 999.0
+                    if prev_end_u > 0:
                         if orig_gap <= 0.5:
-                            origin = fitz.Point(prev_end_x, origin.y)
-                        elif origin.x < prev_end_x:
-                            origin = fitz.Point(prev_end_x, origin.y)
-                        elif origin.x > prev_end_x + sp_char_w * 1.2:
-                            span_gap = origin.x - prev_end_x
-                            sp_x = prev_end_x + (span_gap - sp_char_w) / 2.0
-                            elements_to_draw.append(('text', fitz.Point(sp_x, origin.y), ' ', fn, ff, size, color))
+                            origin_u = prev_end_u
+                        elif origin_u < prev_end_u:
+                            origin_u = prev_end_u
+                        elif origin_u > prev_end_u + sp_char_w * 1.2:
+                            span_gap = origin_u - prev_end_u
+                            sp_u = prev_end_u + (span_gap - sp_char_w) / 2.0
+                            sp_pt = _point_from_uv(sp_u, origin_v, s_dx, s_dy)
+                            elements_to_draw.append(('text', sp_pt, ' ', fn, ff, size, color, s_rot))
 
                     span_w = f_obj.text_length(text, fontsize=size) if f_obj else size * 0.5 * len(text)
-                    prev_end_x = origin.x + span_w
-                    prev_orig_x1 = s["bbox"][2]
-                    elements_to_draw.append(('text', origin, text, fn, ff, size, color))
+                    prev_end_u = origin_u + span_w
+                    prev_orig_u1 = s["bbox_uv"][1]
+                    pt = _point_from_uv(origin_u, origin_v, s_dx, s_dy)
+                    elements_to_draw.append(('text', pt, text, fn, ff, size, color, s_rot))
 
         all_pages_elements.append(elements_to_draw)
-
 
     _gfont_indirect_re = re.compile(r'/Font\s+\d+\s+0\s+R\b')
     for _gx in range(1, doc.xref_length()):
@@ -1248,7 +1321,6 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
         except Exception:
             pass
 
-
     for page_idx, page in enumerate(doc):
         try:
             page.clean_contents(sanitize=False)
@@ -1285,11 +1357,11 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                     page.draw_rect(item[1], color=None, fill=item[2], overlay=True)
                     total_spans_converted += 1
                 elif item[0] == 'text':
-                    _, orig, txt, fn, ff, sz, col = item
+                    _, orig, txt, fn, ff, sz, col, rot = item
                     if ff:
-                        page.insert_text(orig, txt, fontname=fn, fontfile=ff, fontsize=sz, color=col, overlay=True)
+                        page.insert_text(orig, txt, fontname=fn, fontfile=ff, fontsize=sz, color=col, rotate=rot, overlay=True)
                     else:
-                        page.insert_text(orig, txt, fontname=fn, fontsize=sz, color=col, overlay=True)
+                        page.insert_text(orig, txt, fontname=fn, fontsize=sz, color=col, rotate=rot, overlay=True)
                     total_spans_converted += 1
             except Exception:
                 continue
