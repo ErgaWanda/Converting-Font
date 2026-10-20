@@ -3,6 +3,7 @@ import os
 import zipfile
 import docx
 import pymupdf
+import pymupdf as fitz
 from fastapi.testclient import TestClient
 
 from main import (
@@ -372,6 +373,45 @@ def test_backend_logic():
     auto_cfg3 = get_target_font(None)
     assert auto_cfg3["family"] == "Roboto"
     print("Auto Mode Mapping OK: 'auto', '', None all resolve to Roboto.")
+
+    # Landscape & Rotated PDF Tests
+    # 1. Rotated text (e.g. dir = (0, -1))
+    doc_rot = fitz.open()
+    p_rot = doc_rot.new_page(width=595, height=842)
+    p_rot.insert_text((200, 400), "Rotated Vertical Text", fontsize=12, rotate=90)
+    rot_bytes = doc_rot.tobytes()
+    conv_rot_bytes, count_rot = convert_pdf_to_font(rot_bytes, "roboto")
+    assert count_rot >= 1, f"Expected >= 1 span, got {count_rot}"
+    doc_rot_chk = fitz.open(stream=conv_rot_bytes, filetype="pdf")
+    txt_rot = doc_rot_chk[0].get_text()
+    assert "Rotated Vertical Text" in txt_rot, f"Expected Rotated Vertical Text in {txt_rot}"
+    assert doc_rot_chk[0].get_text("dict")["blocks"][0]["lines"][0]["dir"] == (0.0, -1.0)
+    print("Rotated Text PDF Conversion OK: Direction (0.0, -1.0) preserved.")
+
+    # 2. Page rotation attribute (e.g. /Rotate 90)
+    doc_page_rot = fitz.open()
+    p_pr = doc_page_rot.new_page(width=595, height=842)
+    p_pr.insert_text((100, 200), "Page Rotated 90 Deg", fontsize=12)
+    p_pr.set_rotation(90)
+    pr_bytes = doc_page_rot.tobytes()
+    conv_pr_bytes, count_pr = convert_pdf_to_font(pr_bytes, "roboto")
+    assert count_pr >= 1
+    doc_pr_chk = fitz.open(stream=conv_pr_bytes, filetype="pdf")
+    assert doc_pr_chk[0].rotation == 90
+    assert "Page Rotated 90 Deg" in doc_pr_chk[0].get_text()
+    print("Rotated Page PDF Conversion OK: Page rotation preserved.")
+
+    # 3. Native Landscape PDF (width > height)
+    doc_land = fitz.open()
+    p_land = doc_land.new_page(width=842, height=595)
+    p_land.insert_text((100, 100), "Native Landscape Document", fontsize=12)
+    land_bytes = doc_land.tobytes()
+    conv_land_bytes, count_land = convert_pdf_to_font(land_bytes, "roboto")
+    assert count_land >= 1
+    doc_land_chk = fitz.open(stream=conv_land_bytes, filetype="pdf")
+    assert doc_land_chk[0].rect.width == 842
+    assert "Native Landscape Document" in doc_land_chk[0].get_text()
+    print("Native Landscape PDF Conversion OK: Width > Height dimensions preserved.")
 
     print("ALL TESTS PASSED!")
 
