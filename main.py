@@ -2,21 +2,66 @@ import io
 import re
 import os
 import math
+import time
+import uuid
+import logging
 import zipfile
 import urllib.request
 import xml.etree.ElementTree as ET
+from logging.handlers import TimedRotatingFileHandler
 from typing import Optional
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Request
 from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from starlette.requests import Request
 import pandas as pd
 import docx
 from docx.oxml.ns import qn
 import pymupdf
 import pymupdf as fitz
+
+# ---------------------------------------------------------------------------
+# Base directory & Logging Setup
+# ---------------------------------------------------------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOGS_DIR = os.path.join(BASE_DIR, "logs")
+os.makedirs(LOGS_DIR, exist_ok=True)
+
+_log_formatter = logging.Formatter(
+    fmt="%(asctime)s [%(levelname)-8s] %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+
+def _build_logger(name: str) -> logging.Logger:
+    logger = logging.getLogger(name)
+    if logger.handlers:
+        return logger
+    logger.setLevel(logging.DEBUG)
+
+    # Rolling file: ganti file setiap tengah malam, simpan 30 hari
+    fh = TimedRotatingFileHandler(
+        filename=os.path.join(LOGS_DIR, "app.log"),
+        when="midnight",
+        interval=1,
+        backupCount=30,
+        encoding="utf-8"
+    )
+    fh.suffix = "%Y-%m-%d"
+    fh.setFormatter(_log_formatter)
+    fh.setLevel(logging.DEBUG)
+
+    # Console handler (INFO ke atas)
+    ch = logging.StreamHandler()
+    ch.setFormatter(_log_formatter)
+    ch.setLevel(logging.INFO)
+
+    logger.addHandler(fh)
+    logger.addHandler(ch)
+    return logger
+
+logger = _build_logger("converting_font")
+# ---------------------------------------------------------------------------
 
 app = FastAPI(
     title="Tools Converting Font",
@@ -24,8 +69,32 @@ app = FastAPI(
     version="1.3.0"
 )
 
+# ---------------------------------------------------------------------------
+# Middleware: log setiap HTTP request & response
+# ---------------------------------------------------------------------------
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    req_id = uuid.uuid4().hex[:8]
+    start = time.perf_counter()
+    logger.info(
+        "[%s] -> %s %s%s",
+        req_id,
+        request.method,
+        request.url.path,
+        ("?" + request.url.query) if request.url.query else ""
+    )
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        logger.exception("[%s] UNHANDLED EXCEPTION after %.1fms: %s", req_id, elapsed_ms, exc)
+        raise
+    elapsed_ms = (time.perf_counter() - start) * 1000
+    log_level = logging.WARNING if response.status_code >= 400 else logging.INFO
+    logger.log(log_level, "[%s] <- %s (%.1fms)", req_id, response.status_code, elapsed_ms)
+    return response
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# ---------------------------------------------------------------------------
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
 SAMPLES_DIR = os.path.join(BASE_DIR, "assets", "samples")
 FONTS_DIR = os.path.join(BASE_DIR, "assets", "fonts")
@@ -184,7 +253,7 @@ def ensure_all_fonts():
                         with open(dest, 'wb') as f:
                             f.write(data)
                 except Exception as e:
-                    print(f"Warning: Gagal mengunduh {filename}: {e}")
+                    logger.warning("Gagal mengunduh font %s: %s", filename, e)
 
 ensure_all_fonts()
 
@@ -286,27 +355,27 @@ def convert_xml_arial_to_roboto(xml_bytes: bytes) -> tuple[bytes, int]:
 def fix_wording_and_formatting(xml_str: str) -> str:
     """
     Memperbaiki bug wording dan formatting yang ditemukan dari SIT Log:
-    1. Koma double (,,) → koma tunggal (,)
-    2. Format Rupiah salah → format baku (Rp X.XXX.XXX,00)
-    3. Email hello@astralife.co.id → dibungkus tag mailto
-    4. 'Pembayar Premi Polis Lama' → 'Pembayar Premi Polis Baru' (konteks perubahan pembayar)
-    5. Titik ganda (..) → titik tunggal (.)
-    6. Spasi sebelum tanda baca → dihapus
-    7. Wording 'perlu Anda bayarkan' → 'akan didebet' (iBillingReminder)
-    8. Nomor telepon '1-500-AVA (282)' → '1-500-282'
+    1. Koma double (,,) â†’ koma tunggal (,)
+    2. Format Rupiah salah â†’ format baku (Rp X.XXX.XXX,00)
+    3. Email hello@astralife.co.id â†’ dibungkus tag mailto
+    4. 'Pembayar Premi Polis Lama' â†’ 'Pembayar Premi Polis Baru' (konteks perubahan pembayar)
+    5. Titik ganda (..) â†’ titik tunggal (.)
+    6. Spasi sebelum tanda baca â†’ dihapus
+    7. Wording 'perlu Anda bayarkan' â†’ 'akan didebet' (iBillingReminder)
+    8. Nomor telepon '1-500-AVA (282)' â†’ '1-500-282'
     """
     import re
 
-    # 1. Fix koma double (,,) → koma tunggal (,) — termasuk spasi di antaranya
+    # 1. Fix koma double (,,) â†’ koma tunggal (,) â€” termasuk spasi di antaranya
     xml_str = re.sub(r',\s*,', ',', xml_str)
 
-    # 2. Fix titik double (..) → titik tunggal
+    # 2. Fix titik double (..) â†’ titik tunggal
     xml_str = re.sub(r'\.\.+', '.', xml_str)
 
     # 3. Fix spasi sebelum tanda baca , . ; :
     xml_str = re.sub(r'\s+([,\.;:])', r'\1', xml_str)
 
-    # 4. Fix format Rupiah: "Rupiah 13000000" atau "Rupiah -12857415" → "Rp X.XXX.XXX,00"
+    # 4. Fix format Rupiah: "Rupiah 13000000" atau "Rupiah -12857415" â†’ "Rp X.XXX.XXX,00"
     def format_rupiah(m):
         angka_str = re.sub(r'[^\d\-]', '', m.group(1))
         try:
@@ -321,13 +390,13 @@ def fix_wording_and_formatting(xml_str: str) -> str:
 
     xml_str = re.sub(r'\bRupiah\s+(-?[\d\.]+)', format_rupiah, xml_str, flags=re.IGNORECASE)
 
-    # 5. Fix nomor telepon 1-500-AVA (282) → 1-500-282
+    # 5. Fix nomor telepon 1-500-AVA (282) â†’ 1-500-282
     xml_str = re.sub(r'1-500-AVA\s*\(282\)', '1-500-282', xml_str, flags=re.IGNORECASE)
 
-    # 6. Fix wording iBillingReminder: "perlu Anda bayarkan" → "akan didebet"
+    # 6. Fix wording iBillingReminder: "perlu Anda bayarkan" â†’ "akan didebet"
     xml_str = re.sub(r'perlu Anda bayarkan', 'akan didebet', xml_str)
 
-    # 7. Fix wording "Pembayar Premi Polis Lama" → "Pembayar Premi Polis Baru"
+    # 7. Fix wording "Pembayar Premi Polis Lama" â†’ "Pembayar Premi Polis Baru"
     #    Hanya dalam konteks perubahan pembayar (tag perubahan/change)
     xml_str = re.sub(
         r'(Pembayar\s+Premi\s+Polis\s+)Lama',
@@ -1646,7 +1715,14 @@ async def convert_font_endpoint(
         if not file_bytes:
             raise HTTPException(status_code=400, detail="File kosong.")
 
-        converted_bytes, media_type, replacements = process_single_file_content(file_bytes, filename, selected_font)
+        try:
+            converted_bytes, media_type, replacements = process_single_file_content(file_bytes, filename, selected_font)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.exception("Gagal konversi file '%s': %s", filename, exc)
+            raise HTTPException(status_code=500, detail=f"Konversi gagal: {exc}")
+        logger.info("Konversi OK: '%s' -> '%s%s' (%s font diubah, target: %s)", filename, prefix, filename, replacements, font_cfg["name"])
         out_name = f"{prefix}{filename}"
 
         return StreamingResponse(
@@ -1703,6 +1779,7 @@ async def convert_font_endpoint(
                                 total_converted += 1
                                 total_replacements += reps
                 except Exception as e:
+                    logger.exception("Gagal memproses ZIP '%s': %s", fname, e)
                     raise HTTPException(status_code=400, detail=f"Gagal memproses file ZIP '{fname}': {str(e)}")
             elif f_ext in ['xml', 'docx', 'doc', 'pdf', 'rtf']:
                 c_bytes, _, reps = process_single_file_content(fbytes, fname, selected_font)
@@ -1756,6 +1833,7 @@ async def batch_merge_endpoint(
 
     if not template_bytes or not data_bytes:
         raise HTTPException(status_code=400, detail="Template atau Data Nasabah tidak boleh kosong.")
+    logger.info("Batch merge dimulai | template: %s | data: %s", t_filename, d_filename)
 
     df = load_dataset(data_bytes, d_filename)
     if df.empty:
@@ -1768,6 +1846,7 @@ async def batch_merge_endpoint(
         zip_buffer, count = generate_batch_pdf_zip(template_bytes, df)
         out_zip_name = f"AstraLife_PDF_Batch_Result_{count}_Docs.zip"
 
+    logger.info("Batch merge selesai | %d dokumen -> %s", count, out_zip_name)
     return StreamingResponse(
         zip_buffer,
         media_type="application/zip",
