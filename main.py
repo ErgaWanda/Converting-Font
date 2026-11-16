@@ -850,11 +850,7 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     total_spans_converted = 0
 
-    for page in doc:
-        try:
-            page.clean_contents(sanitize=False)
-        except Exception:
-            pass
+    # Doc contents cleaning removed: PyMuPDF clean_contents corrupts q/Q graphics state stack on complex PDFs
 
     # Pre-pass: compute document-level column right margin for each page dimension/rotation
     doc_col_right_by_key = {}
@@ -1585,11 +1581,7 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
             pass
 
     for page_idx, page in enumerate(doc):
-        try:
-            page.clean_contents(sanitize=False)
-        except Exception:
-            pass
-
+        # clean_contents removed: PyMuPDF clean_contents corrupts q/Q graphics state stack
         p_obj = doc.xref_object(page.xref, compressed=False)
         m = re.search(r'/Resources\s+(\d+)\s+0\s+R', p_obj)
         res_str = doc.xref_object(int(m.group(1)), compressed=False) if m else p_obj
@@ -1644,11 +1636,7 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
         except Exception:
             pass
 
-    for page in doc:
-        try:
-            page.clean_contents(sanitize=False)
-        except Exception:
-            pass
+    # Doc contents cleaning removed: PyMuPDF clean_contents corrupts q/Q graphics state stack on complex PDFs
 
     try:
         doc.subset_fonts()
