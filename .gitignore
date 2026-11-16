@@ -98,6 +98,7 @@ $RECYCLE.BIN/
 ~$*.pptx
 
 # Logs & Temporary outputs
+logs/
 *.log
 *.tmp
 *.temp

@@ -856,6 +856,53 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
         except Exception:
             pass
 
+    # Pre-pass: compute document-level column right margin for each page dimension/rotation
+    doc_col_right_by_key = {}
+    for p_temp in doc:
+        p_key = (round(p_temp.rect.width, 0), round(p_temp.rect.height, 0), p_temp.rotation)
+        d_temp = p_temp.get_text("dict")
+        temp_groups = []
+        for b in d_temp.get("blocks", []):
+            if b.get("type") != 0:
+                continue
+            for l in b.get("lines", []):
+                sps = [s for s in l.get("spans", []) if s.get("text", "").strip()]
+                if sps:
+                    sps.sort(key=lambda s: s["origin"][0] * s.get("dir", (1.0, 0.0))[0] + s["origin"][1] * s.get("dir", (1.0, 0.0))[1])
+                    l_dir = l.get("dir", (1.0, 0.0))
+                    mag = math.hypot(l_dir[0], l_dir[1])
+                    dx, dy = (l_dir[0] / mag, l_dir[1] / mag) if mag > 0 else (1.0, 0.0)
+                    temp_groups.append({
+                        "baseline_v": round(sps[0]["origin"][0] * (-dy) + sps[0]["origin"][1] * dx, 1),
+                        "bbox_uv": _get_uv_bbox(l["bbox"], dx, dy),
+                        "spans": sps,
+                        "rot": _dir_to_rotate(dx, dy)
+                    })
+        temp_groups.sort(key=lambda g: (g["baseline_v"], g["bbox_uv"][0]))
+        temp_consolidated = []
+        for l_item in temp_groups:
+            merged = False
+            for cg in temp_consolidated:
+                if cg["rot"] == l_item["rot"] and abs(cg["baseline_v"] - l_item["baseline_v"]) <= 1.2:
+                    u_gap = max(0, max(cg["bbox_uv"][0], l_item["bbox_uv"][0]) - min(cg["bbox_uv"][1], l_item["bbox_uv"][1]))
+                    if u_gap <= 100.0:
+                        cg["bbox_uv"] = (
+                            min(cg["bbox_uv"][0], l_item["bbox_uv"][0]),
+                            max(cg["bbox_uv"][1], l_item["bbox_uv"][1]),
+                            min(cg["bbox_uv"][2], l_item["bbox_uv"][2]),
+                            max(cg["bbox_uv"][3], l_item["bbox_uv"][3])
+                        )
+                        merged = True
+                        break
+            if not merged:
+                temp_consolidated.append({"rot": l_item["rot"], "baseline_v": l_item["baseline_v"], "bbox_uv": l_item["bbox_uv"], "spans": l_item["spans"]})
+        for cg in temp_consolidated:
+            u_len = cg["bbox_uv"][1] - cg["bbox_uv"][0]
+            if u_len > 200:
+                t0 = cg["spans"][0].get("text", "").strip() if cg["spans"] else ""
+                if not t0.startswith("KU ") and not t0.startswith("KK ") and not t0.isdigit():
+                    doc_col_right_by_key[p_key] = max(doc_col_right_by_key.get(p_key, 0.0), cg["bbox_uv"][1])
+
     all_pages_elements = []
     for page in doc:
         d = page.get_text("dict")
@@ -886,9 +933,14 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                         s["origin_v"] = ox * (-dy) + oy * dx
                         s["bbox_uv"] = _get_uv_bbox(s["bbox"], dx, dy)
                         raw_spans.append(s)
+                    elif st:
+                        ov = s["origin"][0] * (-dy) + s["origin"][1] * dx
+                        if raw_spans and abs(raw_spans[-1]["origin_v"] - ov) <= 1.2:
+                            if not raw_spans[-1]["text"].endswith(" ") and not raw_spans[-1]["text"].endswith("-"):
+                                raw_spans[-1]["text"] = raw_spans[-1]["text"] + " "
 
         superseded_ids = set()
-        for i, s1 in enumerate(raw_spans):
+        for i, s1 in enumerate(raw_spans):  
             t1 = s1.get("text", "").strip().lower()
             r1 = fitz.Rect(s1["bbox"])
             for s2 in raw_spans[i+1:]:
@@ -931,20 +983,6 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                 if len(s_cols) <= 2:
                     superseded_ids.add(id(s))
 
-        end_u_counts = {}
-        for b in d.get("blocks", []):
-            if b.get("type") != 0:
-                continue
-            for l in b.get("lines", []):
-                sps = [s for s in l.get("spans", []) if id(s) not in superseded_ids]
-                txt = " ".join(s.get("text", "") for s in sps).strip()
-                if len(txt.split()) >= 3 and not txt.endswith(":"):
-                    dx, dy = sps[0]["dir"] if sps else (1.0, 0.0)
-                    u_bbox = _get_uv_bbox(l["bbox"], dx, dy)
-                    u1_val = round(u_bbox[1], 0)
-                    end_u_counts[u1_val] = end_u_counts.get(u1_val, 0) + 1
-        common_margins = [k for k, v in end_u_counts.items() if v >= 4]
-
         all_page_groups = []
         for b in d.get("blocks", []):
             if b.get("type") != 0:
@@ -964,13 +1002,93 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
 
         all_page_groups.sort(key=lambda g: (g["baseline_v"], g["bbox_uv"][0]))
 
+        # Consolidate lines on the same baseline across blocks (fixing Word's sliced text across watermarks/images)
+        consolidated_page_lines = []
+        for l_item in all_page_groups:
+            merged = False
+            for cg in consolidated_page_lines:
+                if cg["rot"] == l_item["rot"] and abs(cg["baseline_v"] - l_item["baseline_v"]) <= 1.2:
+                    u_gap = max(0, max(cg["bbox_uv"][0], l_item["bbox_uv"][0]) - min(cg["bbox_uv"][1], l_item["bbox_uv"][1]))
+                    if u_gap <= 100.0:
+                        cg["spans"].extend(l_item["spans"])
+                        cg["bbox_uv"] = (
+                            min(cg["bbox_uv"][0], l_item["bbox_uv"][0]),
+                            max(cg["bbox_uv"][1], l_item["bbox_uv"][1]),
+                            min(cg["bbox_uv"][2], l_item["bbox_uv"][2]),
+                            max(cg["bbox_uv"][3], l_item["bbox_uv"][3])
+                        )
+                        merged = True
+                        break
+            if not merged:
+                consolidated_page_lines.append({
+                    "baseline_v": l_item["baseline_v"],
+                    "bbox_uv": l_item["bbox_uv"],
+                    "spans": list(l_item["spans"]),
+                    "dir": l_item["dir"],
+                    "rot": l_item["rot"]
+                })
+
+        for cg in consolidated_page_lines:
+            cg["spans"].sort(key=lambda s: s["origin_u"])
+            merged_sps = []
+            for s in cg["spans"]:
+                if not merged_sps:
+                    merged_sps.append(s)
+                else:
+                    prev = merged_sps[-1]
+                    prev_t = prev.get("text", "")
+                    curr_t = s.get("text", "")
+                    same_style = (
+                        abs(prev.get("size", 10) - s.get("size", 10)) <= 0.2 and
+                        prev.get("color") == s.get("color") and
+                        prev.get("flags") == s.get("flags") and
+                        prev.get("font") == s.get("font")
+                    )
+                    prev_has_space = bool(prev_t and prev_t[-1].isspace())
+                    curr_has_space = bool(curr_t and curr_t[0].isspace())
+                    prev_is_bullet = _is_bullet_span(prev_t.strip(), prev.get("font", ""))
+                    if same_style and not prev_has_space and not curr_has_space and not prev_is_bullet:
+                        prev["text"] = prev_t + curr_t
+                        prev["bbox_uv"] = (
+                            min(prev["bbox_uv"][0], s["bbox_uv"][0]),
+                            max(prev["bbox_uv"][1], s["bbox_uv"][1]),
+                            min(prev["bbox_uv"][2], s["bbox_uv"][2]),
+                            max(prev["bbox_uv"][3], s["bbox_uv"][3])
+                        )
+                    else:
+                        merged_sps.append(s)
+            cg["spans"] = merged_sps
+        consolidated_page_lines.sort(key=lambda g: (g["baseline_v"], g["bbox_uv"][0]))
+
+        wide_u1s = [
+            g["bbox_uv"][1] for g in consolidated_page_lines
+            if len(g["spans"]) and (g["bbox_uv"][1] - g["bbox_uv"][0]) > 200
+            and not g["spans"][0].get("text", "").startswith("KU ")
+            and not g["spans"][0].get("text", "").startswith("KK ")
+            and not g["spans"][0].get("text", "").isdigit()
+        ]
+        page_col_right = max(wide_u1s) if wide_u1s else None
+        p_key = (round(page.rect.width, 0), round(page.rect.height, 0), page.rotation)
+        if p_key in doc_col_right_by_key and doc_col_right_by_key[p_key] > (page_col_right or 0):
+            page_col_right = doc_col_right_by_key[p_key]
+
+        end_u_counts = {}
+        for g in consolidated_page_lines:
+            txt = " ".join(s.get("text", "") for s in g["spans"]).strip()
+            if len(txt.split()) >= 4 and not txt.endswith(":"):
+                u1_val = round(g["bbox_uv"][1], 0)
+                end_u_counts[u1_val] = end_u_counts.get(u1_val, 0) + 1
+        common_margins = [k for k, v in end_u_counts.items() if v >= 3]
+        if page_col_right:
+            common_margins.append(round(page_col_right, 0))
+
         page_bullet_indents = {}
-        for gi, g in enumerate(all_page_groups):
+        for gi, g in enumerate(consolidated_page_lines):
             sps = g["spans"]
             t0 = sps[0].get("text", "").strip()
             if _is_bullet_span(t0, sps[0].get("font", "")) and len(sps) >= 2:
                 p_key = (round(sps[0]["origin_u"], 0), g["rot"])
-                for next_g in all_page_groups[gi+1:]:
+                for next_g in consolidated_page_lines[gi+1:]:
                     if next_g["rot"] != g["rot"]:
                         continue
                     nt0 = next_g["spans"][0].get("text", "").strip()
@@ -989,56 +1107,39 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                     freq[cv] = freq.get(cv, 0) + 1
                 page_std_indent[p_key] = max(freq.items(), key=lambda item: item[1])[0]
 
+        # Group lines into paragraphs / logical blocks based on vertical spacing
+        page_blocks = []
+        curr_block = []
+        for g in consolidated_page_lines:
+            if not curr_block:
+                curr_block.append(g)
+            else:
+                prev_g = curr_block[-1]
+                if g["rot"] == prev_g["rot"]:
+                    dv = g["baseline_v"] - prev_g["baseline_v"]
+                    sz = prev_g["spans"][0].get("size", 10.0) if prev_g["spans"] else 10.0
+                    if 0 < dv <= max(20.0, sz * 2.2):
+                        curr_block.append(g)
+                    else:
+                        page_blocks.append(curr_block)
+                        curr_block = [g]
+                else:
+                    page_blocks.append(curr_block)
+                    curr_block = [g]
+        if curr_block:
+            page_blocks.append(curr_block)
+
         elements_to_draw = []
-        for b in d.get("blocks", []):
-            if b.get("type") != 0:
-                continue
-            lines = b.get("lines", [])
-            if not lines:
-                continue
-
-            grouped_lines = []
-            for l in lines:
-                sps = [s for s in l.get("spans", []) if s.get("text", "").strip() and id(s) not in superseded_ids]
-                if not sps:
-                    continue
-                dx, dy = sps[0]["dir"]
-                rot = sps[0]["rot"]
-                base_v = round(sps[0]["origin_v"], 1)
-                l_uv = _get_uv_bbox(l["bbox"], dx, dy)
-                merged = False
-                for g in grouped_lines:
-                    if g["rot"] == rot and abs(g["baseline_v"] - base_v) <= 1.2:
-                        u_gap = max(0, max(g["bbox_uv"][0], l_uv[0]) - min(g["bbox_uv"][1], l_uv[1]))
-                        if u_gap <= 15.0:
-                            g["lines"].append(l)
-                            g["spans"].extend(sps)
-                            g["bbox_uv"] = (
-                                min(g["bbox_uv"][0], l_uv[0]),
-                                max(g["bbox_uv"][1], l_uv[1]),
-                                min(g["bbox_uv"][2], l_uv[2]),
-                                max(g["bbox_uv"][3], l_uv[3])
-                            )
-                            merged = True
-                            break
-                if not merged:
-                    grouped_lines.append({
-                        "baseline_v": base_v,
-                        "lines": [l],
-                        "spans": list(sps),
-                        "bbox_uv": l_uv,
-                        "dir": (dx, dy),
-                        "rot": rot
-                    })
-
-            for g in grouped_lines:
-                g["spans"].sort(key=lambda s: s["origin_u"])
-
+        for grouped_lines in page_blocks:
             if not grouped_lines:
                 continue
 
             block_max_u1 = max(g["bbox_uv"][1] for g in grouped_lines)
-            aligned_end_count = sum(1 for g in grouped_lines if abs(g["bbox_uv"][1] - block_max_u1) <= 2.5)
+            target_right_u = block_max_u1
+            if page_col_right and (page_col_right - block_max_u1) <= 60.0:
+                target_right_u = max(target_right_u, page_col_right)
+
+            aligned_end_count = sum(1 for g in grouped_lines if abs(g["bbox_uv"][1] - block_max_u1) <= 2.5 or (page_col_right and abs(g["bbox_uv"][1] - page_col_right) <= 2.5))
 
             for gi, g in enumerate(grouped_lines):
                 spans = g["spans"]
@@ -1087,9 +1188,22 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                         if abs(cand_indent - orig_body_u0) <= 12.0:
                             body_u0 = cand_indent
 
-                target_u1 = g["bbox_uv"][1]
+                orig_target_u1 = g["bbox_uv"][1]
+                target_u1 = orig_target_u1
                 target_w = target_u1 - body_u0
-                is_right_aligned = (aligned_end_count >= 2 and abs(target_u1 - block_max_u1) <= 2.5) or any(abs(target_u1 - cm) <= 2.5 for cm in common_margins)
+
+                is_last_in_block = (gi == len(grouped_lines) - 1)
+                next_is_heading = False
+                if gi < len(grouped_lines) - 1:
+                    next_g = grouped_lines[gi+1]
+                    next_txt = " ".join(s.get("text", "") for s in next_g["spans"]).strip()
+                    next_words = next_txt.split()
+                    next_s0 = next_g["spans"][0] if next_g["spans"] else None
+                    if next_s0:
+                        nt0 = next_s0.get("text", "").strip()
+                        if _is_bullet_span(nt0, next_s0.get("font", "")) or (len(next_words) <= 3 and bool(next_s0.get("flags", 0) & 16)):
+                            next_is_heading = True
+                is_paragraph_end = is_last_in_block or next_is_heading
 
                 words_data = []
                 for s in body_spans:
@@ -1128,22 +1242,10 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                             'w': w_len, 'origin_u': s['origin_u'], 'origin_v': s['origin_v'], 'f_obj': sf_obj
                         })
 
-                has_square = any(_is_square_bullet(s.get("text", "").strip(), s.get("font", "").lower()) for s in body_spans)
+                has_square = any(any(_is_square_bullet(ch, s.get("font", "").lower()) for ch in s.get("text", "")) for s in body_spans)
                 total_words = len(words_data)
                 total_words_w = sum(wd['w'] for wd in words_data)
                 default_sp = words_data[0]['f_obj'].text_length(' ', fontsize=words_data[0]['sz']) if words_data else 2.0
-
-                body_scale = 1.0
-                if total_words >= 2 and target_w > 0:
-                    gaps = total_words - 1
-                    natural_w = total_words_w + gaps * default_sp
-                    if natural_w > target_w * 1.005:
-                        body_scale = max(0.85, target_w / natural_w)
-                        for wd in words_data:
-                            wd['sz'] *= body_scale
-                            wd['w'] = wd['f_obj'].text_length(wd['word'], fontsize=wd['sz']) if wd['f_obj'] else wd['sz'] * 0.5 * len(wd['word'])
-                        total_words_w = sum(wd['w'] for wd in words_data)
-                        default_sp = words_data[0]['f_obj'].text_length(' ', fontsize=words_data[0]['sz']) if words_data else 2.0
 
                 full_line_txt = " ".join(wd['word'] for wd in words_data).strip()
                 is_label = full_line_txt.endswith(":") or full_line_txt.endswith("?")
@@ -1153,12 +1255,61 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                     widths = [g_line["bbox_uv"][1] - g_line["bbox_uv"][0] for g_line in grouped_lines]
                     if (max(centers) - min(centers) <= 2.5) and (max(widths) - min(widths) >= 4.0):
                         is_centered_block = True
+                is_justifiable_line = (
+                    not is_paragraph_end and
+                    (orig_target_u1 - body_u0) >= 180.0 and
+                    (target_right_u - orig_target_u1) <= 60.0 and
+                    total_words >= 4 and
+                    not has_square and
+                    not is_label and
+                    not is_centered_block
+                )
+
                 can_justify = False
-                if is_right_aligned and not has_square and not is_label and not is_centered_block and total_words >= 4 and target_w > total_words_w:
+                if is_justifiable_line:
+                    just_target_w = target_right_u - body_u0
                     gaps = total_words - 1
-                    gap_w = (target_w - total_words_w) / gaps
-                    if default_sp * 0.5 <= gap_w <= default_sp * 12.0:
-                        can_justify = True
+                    if gaps > 0 and just_target_w > total_words_w:
+                        gap_w = (just_target_w - total_words_w) / gaps
+                        if default_sp * 0.15 <= gap_w <= default_sp * 8.0:
+                            target_u1 = target_right_u
+                            target_w = just_target_w
+                            can_justify = True
+
+                if not can_justify:
+                    is_right_aligned = (aligned_end_count >= 2 and abs(orig_target_u1 - block_max_u1) <= 2.5) or any(abs(orig_target_u1 - cm) <= 2.5 for cm in common_margins)
+                    if is_right_aligned and not has_square and not is_label and not is_centered_block and total_words >= 4 and target_w > total_words_w:
+                        gaps = total_words - 1
+                        gap_w = (target_w - total_words_w) / gaps
+                        if default_sp * 0.15 <= gap_w <= default_sp * 12.0:
+                            can_justify = True
+
+                # body_scale: only downscale font if words themselves (without spaces) exceed available width.
+                # If words fit and only spaces make it exceed scale_ref_w, tighten word spacing instead of shrinking font size.
+                body_scale = 1.0
+                condensed_gaps = False
+                condensed_gap_w = default_sp
+                if not can_justify and (orig_target_u1 - body_u0) >= 180.0 and total_words >= 4 and target_w > 0:
+                    if page_col_right and page_col_right > body_u0:
+                        scale_ref_w = page_col_right - body_u0
+                    else:
+                        scale_ref_w = target_w
+                    gaps = total_words - 1
+                    natural_w = total_words_w + gaps * default_sp
+                    if natural_w > scale_ref_w * 1.005:
+                        min_needed_w = total_words_w + gaps * (default_sp * 0.45)
+                        if scale_ref_w >= min_needed_w:
+                            # Words fit! Tighten word spacing instead of shrinking font
+                            condensed_gaps = True
+                            condensed_gap_w = (scale_ref_w - total_words_w) / gaps
+                        else:
+                            # Words themselves are too wide; apply proportional downscaling
+                            body_scale = max(0.85, scale_ref_w / natural_w)
+                            for wd in words_data:
+                                wd['sz'] *= body_scale
+                                wd['w'] = wd['f_obj'].text_length(wd['word'], fontsize=wd['sz']) if wd['f_obj'] else wd['sz'] * 0.5 * len(wd['word'])
+                            total_words_w = sum(wd['w'] for wd in words_data)
+                            default_sp = words_data[0]['f_obj'].text_length(' ', fontsize=words_data[0]['sz']) if words_data else 2.0
 
                 def add_prefix_span(p_span):
                     p_txt = p_span.get("text", "").strip()
@@ -1195,12 +1346,12 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                         pt = _point_from_uv(p_orig_u, p_orig_v, p_dx, p_dy)
                         elements_to_draw.append(('text', pt, p_txt, p_fn, p_ff, p_sz, p_col, p_rot))
 
-                if can_justify:
+                if can_justify or condensed_gaps:
                     if prefix_span:
                         add_prefix_span(prefix_span)
                     curr_u = body_u0
                     gaps = total_words - 1
-                    gap_w = (target_w - total_words_w) / gaps
+                    gap_w = (target_w - total_words_w) / gaps if can_justify else condensed_gap_w
                     for i, wd in enumerate(words_data):
                         word_pt = _point_from_uv(curr_u, wd['origin_v'], dx, dy)
                         elements_to_draw.append(('text', word_pt, wd['word'], wd['fn'], wd['ff'], wd['sz'], wd['color'], rot))
@@ -1255,13 +1406,17 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                         rob_body_w += sf_obj.text_length(stext, fontsize=s_sz) if sf_obj else s_sz * 0.5 * len(stext)
 
                 line_scale = 1.0
-                if avail_w > 0 and rob_body_w > avail_w * 1.005:
-                    line_scale = max(0.70, avail_w / rob_body_w)
+                effective_avail_w = avail_w
+                if page_col_right and (page_col_right - base_start_u) > avail_w:
+                    effective_avail_w = page_col_right - base_start_u
+
+                if effective_avail_w > 0 and rob_body_w > effective_avail_w * 1.005:
+                    line_scale = max(0.70, effective_avail_w / rob_body_w)
 
                 body_shift_u = (body_u0 - orig_body_u0) if prefix_span else 0.0
                 prev_end_u = 0
                 prev_orig_u1 = 0
-                for s in draw_spans:
+                for s_idx, s in enumerate(draw_spans):
                     text = s.get("text", "")
                     if not text:
                         continue
@@ -1335,11 +1490,17 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                     sp_char_w = f_obj.text_length(' ', fontsize=size) if f_obj else size * 0.25
                     orig_gap = (s["bbox_uv"][0] - prev_orig_u1) if prev_orig_u1 > 0 else 999.0
                     if prev_end_u > 0:
-                        if orig_gap <= 0.5:
-                            origin_u = prev_end_u
+                        prev_s = draw_spans[s_idx - 1] if s_idx > 0 else None
+                        prev_t = prev_s.get("text", "") if prev_s else ""
+                        prev_has_space = bool(prev_t and prev_t[-1].isspace())
+                        curr_has_space = bool(text and text[0].isspace())
+                        if 0.5 < orig_gap <= 40.0:
+                            origin_u = prev_end_u + (sp_char_w if not (prev_has_space or curr_has_space) else 0.0)
+                        elif orig_gap <= 0.5:
+                            origin_u = prev_end_u + (0.05 if curr_has_space and not prev_has_space else 0.0)
                         elif origin_u < prev_end_u:
                             origin_u = prev_end_u
-                        elif origin_u > prev_end_u + sp_char_w * 1.2:
+                        elif not prev_has_space and not curr_has_space and origin_u > prev_end_u + sp_char_w * 1.2:
                             span_gap = origin_u - prev_end_u
                             sp_u = prev_end_u + (span_gap - sp_char_w) / 2.0
                             sp_pt = _point_from_uv(sp_u, origin_v, s_dx, s_dy)
@@ -1352,6 +1513,34 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                     elements_to_draw.append(('text', pt, text, fn, ff, size, color, s_rot))
 
         all_pages_elements.append(elements_to_draw)
+
+    # Deteksi gambar masker teks (artefak Word/flattening: gambar kecil <= 8x8 dengan SMask)
+    text_mask_img_xrefs = set()
+    text_smask_xrefs = set()
+    for x in range(1, doc.xref_length()):
+        try:
+            obj_str = doc.xref_object(x, compressed=False)
+            if '/Subtype /Image' in obj_str or '/Subtype/Image' in obj_str:
+                w_m = re.search(r'/Width\s+(\d+)', obj_str)
+                h_m = re.search(r'/Height\s+(\d+)', obj_str)
+                sm_m = re.search(r'/SMask\s+(\d+)\s+0\s+R', obj_str)
+                if w_m and h_m and sm_m:
+                    w_val = int(w_m.group(1))
+                    h_val = int(h_m.group(1))
+                    if w_val <= 8 and h_val <= 8:
+                        text_mask_img_xrefs.add(x)
+                        text_smask_xrefs.add(int(sm_m.group(1)))
+        except Exception:
+            pass
+
+    def _find_mask_names(res_obj_str: str) -> set:
+        if not text_mask_img_xrefs or not res_obj_str:
+            return set()
+        names = set()
+        for m in re.finditer(r'/([A-Za-z0-9_\-\.]+)\s+(\d+)\s+0\s+R', res_obj_str):
+            if int(m.group(2)) in text_mask_img_xrefs:
+                names.add(m.group(1))
+        return names
 
     _gfont_indirect_re = re.compile(r'/Font\s+\d+\s+0\s+R\b')
     for _gx in range(1, doc.xref_length()):
@@ -1371,11 +1560,13 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
             obj_str = doc.xref_object(xref, compressed=False)
             if '/Subtype /Form' in obj_str or '/Subtype/Form' in obj_str:
                 raw_bytes = doc.xref_stream(xref)
-                if raw_bytes and b'BT' in raw_bytes:
+                if raw_bytes and (b'BT' in raw_bytes or text_mask_img_xrefs):
                     m = re.search(r'/Resources\s+(\d+)\s+0\s+R', obj_str)
+                    res_obj = doc.xref_object(int(m.group(1)), compressed=False) if m else obj_str
+                    form_mask_names = _find_mask_names(res_obj)
+
                     if m:
                         res_xref = int(m.group(1))
-                        res_obj = doc.xref_object(res_xref, compressed=False)
                         new_res = _clear_all_font_refs(res_obj)
                         if new_res != res_obj:
                             doc.update_object(res_xref, new_res)
@@ -1386,6 +1577,9 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
 
                     raw_data = raw_bytes.decode('latin-1', errors='replace')
                     clean_data = _remove_text_from_content_stream(raw_data)
+                    if form_mask_names:
+                        pat = r'/(?:' + '|'.join(re.escape(nm) for nm in form_mask_names) + r')\s+Do\b'
+                        clean_data = re.sub(pat, '', clean_data)
                     doc.update_stream(xref, clean_data.encode('latin-1'))
         except Exception:
             pass
@@ -1395,11 +1589,20 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
             page.clean_contents(sanitize=False)
         except Exception:
             pass
+
+        p_obj = doc.xref_object(page.xref, compressed=False)
+        m = re.search(r'/Resources\s+(\d+)\s+0\s+R', p_obj)
+        res_str = doc.xref_object(int(m.group(1)), compressed=False) if m else p_obj
+        page_mask_names = _find_mask_names(res_str)
+
         contents = page.get_contents()
         for cx in contents:
             try:
                 raw_data = doc.xref_stream(cx).decode('latin-1', errors='replace')
                 clean_data = _remove_text_from_content_stream(raw_data)
+                if page_mask_names:
+                    pat = r'/(?:' + '|'.join(re.escape(nm) for nm in page_mask_names) + r')\s+Do\b'
+                    clean_data = re.sub(pat, '', clean_data)
                 doc.update_stream(cx, clean_data.encode('latin-1'))
             except Exception:
                 pass
@@ -1434,6 +1637,12 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                     total_spans_converted += 1
             except Exception:
                 continue
+
+    for x in (text_mask_img_xrefs | text_smask_xrefs):
+        try:
+            doc.update_stream(x, b'')
+        except Exception:
+            pass
 
     for page in doc:
         try:
