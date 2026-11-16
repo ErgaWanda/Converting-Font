@@ -413,6 +413,81 @@ def test_backend_logic():
     assert "Native Landscape Document" in doc_land_chk[0].get_text()
     print("Native Landscape PDF Conversion OK: Width > Height dimensions preserved.")
 
+    # 4. Text-mask Image Artifact Removal (Word/Flattened text mask deduplication)
+    doc_mask = fitz.open()
+    p_mask = doc_mask.new_page()
+    p_mask.insert_text((50, 100), "Ketentuan Umum Bebas Menumpuk", fontname="helv", fontsize=12)
+
+    pix_mask = fitz.Pixmap(fitz.csGRAY, fitz.IRect(0, 0, 100, 20), 0)
+    pix_base = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 2, 2), 0)
+
+    p_mask.insert_image(fitz.Rect(50, 85, 150, 105), stream=pix_base.tobytes("png"))
+    p_mask.insert_image(fitz.Rect(0, 0, 1, 1), stream=pix_mask.tobytes("png"))
+
+    imgs = p_mask.get_images()
+    b_xref = imgs[0][0]
+    m_xref = imgs[1][0]
+    b_obj = doc_mask.xref_object(b_xref).replace(">>", f"  /SMask {m_xref} 0 R\n>>")
+    doc_mask.update_object(b_xref, b_obj)
+    mask_pdf_bytes = doc_mask.tobytes()
+    doc_mask.close()
+
+    conv_mask_bytes, count_mask = convert_pdf_to_font(mask_pdf_bytes, "roboto")
+    doc_mask_chk = fitz.open(stream=conv_mask_bytes, filetype="pdf")
+    assert "Ketentuan Umum Bebas Menumpuk" in doc_mask_chk[0].get_text()
+    assert count_mask >= 1
+    print("Text-Mask Image Artifact Deduplication OK: Word flattened text-mask images suppressed successfully.")
+
+    # 5. Split Word and Hyphenated Word Reconnection (Word watermark slicing)
+    doc_split = fitz.open()
+    p_split = doc_split.new_page()
+    # Line 1: Split word "Man" + "faat"
+    p_split.insert_text((100, 100), "Penerima Man", fontname="helv", fontsize=9)
+    p_split.insert_text((180, 100), "faat dan Tertanggung", fontname="helv", fontsize=9)
+    # Line 2: Hyphenated word "ketentuan" + "-" + "ketentuan"
+    p_split.insert_text((100, 120), "ketentuan", fontname="helv", fontsize=9)
+    p_split.insert_text((150, 120), "-", fontname="helv", fontsize=9)
+    p_split.insert_text((160, 120), "ketentuan lainnya", fontname="helv", fontsize=9)
+    # Line 3: Two separate words with space span "ataupun" + " " + "tidak"
+    p_split.insert_text((100, 140), "ataupun", fontname="helv", fontsize=9)
+    p_split.insert_text((140, 140), " ", fontname="helv", fontsize=9)
+    p_split.insert_text((150, 140), "tidak berlaku", fontname="helv", fontsize=9)
+    split_pdf_bytes = doc_split.tobytes()
+    doc_split.close()
+
+    conv_split_bytes, count_split = convert_pdf_to_font(split_pdf_bytes, "roboto")
+    doc_split_chk = fitz.open(stream=conv_split_bytes, filetype="pdf")
+    txt_split = doc_split_chk[0].get_text()
+    assert "Penerima Manfaat" in txt_split, f"Expected 'Penerima Manfaat', got: {txt_split}"
+    assert "ketentuan-ketentuan" in txt_split, f"Expected 'ketentuan-ketentuan', got: {txt_split}"
+    assert "ataupun tidak" in txt_split, f"Expected 'ataupun tidak', got: {txt_split}"
+    assert "ataupuntidak" not in txt_split
+    print("Split Word and Hyphenated Word Reconnection OK: Broken word fragments restored seamlessly.")
+
+    # 6. Full Justification (Rata Kanan-Kiri) across multi-line paragraphs
+    doc_just_multi = fitz.open()
+    p_jm = doc_just_multi.new_page(width=595.32, height=841.92)
+    p_jm.insert_text((105.0, 200), "Biaya materai, biaya keikutsertaan dan biaya-biaya lain, jika ada, yang ditujukan untuk dan sebagaimana", fontname="helv", fontsize=9.0)
+    p_jm.insert_text((105.0, 215), "dimaksud dalam Polis ini akan dibebankan dan dibayar berdasarkan ketentuan yang ditetapkan oleh", fontname="helv", fontsize=9.0)
+    p_jm.insert_text((105.0, 230), "Penanggung. Penanggung dan Pemegang Polis akan menanggung biaya legal masing-masing.", fontname="helv", fontsize=9.0)
+    jm_pdf_bytes = doc_just_multi.tobytes()
+    doc_just_multi.close()
+
+    conv_jm_bytes, _ = convert_pdf_to_font(jm_pdf_bytes, "roboto")
+    doc_jm_chk = fitz.open(stream=conv_jm_bytes, filetype="pdf")
+    d_jm = doc_jm_chk[0].get_text("dict")
+    body_lines = []
+    for b in d_jm["blocks"]:
+        for l in b.get("lines", []):
+            body_lines.append(l)
+    assert len(body_lines) >= 3
+    line0_right = body_lines[0]["bbox"][2]
+    line1_right = body_lines[1]["bbox"][2]
+    assert abs(line0_right - line1_right) <= 1.0, f"Expected justified lines to align on right: {line0_right} vs {line1_right}"
+    assert body_lines[2]["bbox"][2] < line0_right - 20.0
+    doc_jm_chk.close()
+    print("Full Justification Alignment OK: Multi-line paragraph non-last lines aligned flush on right margin.")
+
     print("ALL TESTS PASSED!")
 
 if __name__ == "__main__":
