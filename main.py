@@ -710,6 +710,8 @@ def _is_bullet_span(text: str, font_str: str = '') -> bool:
         return True
     return False
 
+_TWO_CHAR_TEXT_OPS = frozenset({'Tj', 'TJ', 'Tf', 'Tc', 'Tw', 'Tz', 'TL', 'Tr', 'Ts', 'Td', 'TD', 'Tm', 'T*'})
+
 def _remove_text_from_content_stream(stream_text: str) -> str:
     out = []
     i = 0
@@ -717,10 +719,52 @@ def _remove_text_from_content_stream(stream_text: str) -> str:
     in_text = False
     while i < n:
         if not in_text:
-            if (i == 0 or stream_text[i-1] in PDF_DELIMITERS) and stream_text[i:i+2] == 'BT' and (i+2 == n or stream_text[i+2] in PDF_DELIMITERS):
-                in_text = True
-                i += 2
+            if stream_text[i] == '%':
+                c_start = i
+                while i < n and stream_text[i] not in '\r\n':
+                    i += 1
+                out.append(stream_text[c_start:i])
                 continue
+            if stream_text[i] == '(':
+                str_start = i
+                i += 1
+                depth = 1
+                while i < n and depth > 0:
+                    if stream_text[i] == '\\':
+                        i += 2
+                    elif stream_text[i] == '(':
+                        depth += 1
+                        i += 1
+                    elif stream_text[i] == ')':
+                        depth -= 1
+                        i += 1
+                    else:
+                        i += 1
+                out.append(stream_text[str_start:i])
+                continue
+            if stream_text[i] == '<' and (i + 1 < n and stream_text[i+1] != '<'):
+                hex_start = i
+                i += 1
+                while i < n and stream_text[i] != '>':
+                    i += 1
+                if i < n:
+                    i += 1
+                out.append(stream_text[hex_start:i])
+                continue
+            if (i == 0 or stream_text[i-1] in PDF_DELIMITERS):
+                if stream_text[i:i+2] == 'BT' and (i+2 == n or stream_text[i+2] in PDF_DELIMITERS):
+                    in_text = True
+                    i += 2
+                    continue
+                if stream_text[i:i+2] == 'ET' and (i+2 == n or stream_text[i+2] in PDF_DELIMITERS):
+                    i += 2
+                    continue
+                if stream_text[i:i+2] in _TWO_CHAR_TEXT_OPS and (i+2 == n or stream_text[i+2] in PDF_DELIMITERS):
+                    i += 2
+                    continue
+                if stream_text[i] in ("'", '"') and (i+1 == n or stream_text[i+1] in PDF_DELIMITERS):
+                    i += 1
+                    continue
             out.append(stream_text[i])
             i += 1
         else:
@@ -752,7 +796,68 @@ def _remove_text_from_content_stream(stream_text: str) -> str:
                 continue
             else:
                 i += 1
-    return ''.join(out)
+
+    clean_intermediate = ''.join(out)
+
+    q_out = []
+    j = 0
+    m = len(clean_intermediate)
+    q_depth = 0
+
+    while j < m:
+        if clean_intermediate[j] == '%':
+            c_start = j
+            while j < m and clean_intermediate[j] not in '\r\n':
+                j += 1
+            q_out.append(clean_intermediate[c_start:j])
+            continue
+        if clean_intermediate[j] == '(':
+            s_start = j
+            j += 1
+            depth = 1
+            while j < m and depth > 0:
+                if clean_intermediate[j] == '\\':
+                    j += 2
+                elif clean_intermediate[j] == '(':
+                    depth += 1
+                    j += 1
+                elif clean_intermediate[j] == ')':
+                    depth -= 1
+                    j += 1
+                else:
+                    j += 1
+            q_out.append(clean_intermediate[s_start:j])
+            continue
+        if clean_intermediate[j] == '<' and (j + 1 < m and clean_intermediate[j+1] != '<'):
+            h_start = j
+            j += 1
+            while j < m and clean_intermediate[j] != '>':
+                j += 1
+            if j < m:
+                j += 1
+            q_out.append(clean_intermediate[h_start:j])
+            continue
+
+        if (j == 0 or clean_intermediate[j-1] in PDF_DELIMITERS):
+            if clean_intermediate[j] == 'q' and (j+1 == m or clean_intermediate[j+1] in PDF_DELIMITERS):
+                q_depth += 1
+                q_out.append('q')
+                j += 1
+                continue
+            elif clean_intermediate[j] == 'Q' and (j+1 == m or clean_intermediate[j+1] in PDF_DELIMITERS):
+                if q_depth > 0:
+                    q_depth -= 1
+                    q_out.append('Q')
+                j += 1
+                continue
+
+        q_out.append(clean_intermediate[j])
+        j += 1
+
+    if q_depth > 0:
+        q_out.append('\n' + ' '.join(['Q'] * q_depth) + '\n')
+
+    return ''.join(q_out)
 
 def _clear_font_dict(obj_str: str) -> str:
     m = re.search(r'/Font\s*<<', obj_str)
