@@ -715,12 +715,10 @@ def _remove_text_from_content_stream(stream_text: str) -> str:
     i = 0
     n = len(stream_text)
     in_text = False
-    bt_non_str = []
     while i < n:
         if not in_text:
             if (i == 0 or stream_text[i-1] in PDF_DELIMITERS) and stream_text[i:i+2] == 'BT' and (i+2 == n or stream_text[i+2] in PDF_DELIMITERS):
                 in_text = True
-                bt_non_str = []
                 i += 2
                 continue
             out.append(stream_text[i])
@@ -750,17 +748,9 @@ def _remove_text_from_content_stream(stream_text: str) -> str:
                 continue
             elif (i == 0 or stream_text[i-1] in PDF_DELIMITERS) and stream_text[i:i+2] == 'ET' and (i+2 == n or stream_text[i+2] in PDF_DELIMITERS):
                 in_text = False
-                non_str_content = ''.join(bt_non_str)
-                state_ops = re.findall(r'(/[\w\#]+)\s+(cs|CS|gs|GS)\b', non_str_content)
-                if state_ops:
-                    out.append(' ' + ' '.join(f'{name} {op}' for name, op in state_ops) + ' ')
-                color_ops = re.findall(r'((?:[0-9\.\+\-]+\s+){1,4}(?:k|K|rg|RG|g|G|scn|SCN|sc|SC))\b', non_str_content)
-                if color_ops:
-                    out.append(' ' + ' '.join(color_ops) + ' ')
                 i += 2
                 continue
             else:
-                bt_non_str.append(stream_text[i])
                 i += 1
     return ''.join(out)
 
