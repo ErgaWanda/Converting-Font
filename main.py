@@ -1578,14 +1578,19 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
         page_mask_names = _find_mask_names(res_str)
 
         contents = page.get_contents()
-        for cx in contents:
+        if contents:
             try:
-                raw_data = doc.xref_stream(cx).decode('latin-1', errors='replace')
+                raw_data = b'\n'.join(doc.xref_stream(cx) for cx in contents).decode('latin-1', errors='replace')
                 clean_data = _remove_text_from_content_stream(raw_data)
                 if page_mask_names:
                     pat = r'/(?:' + '|'.join(re.escape(nm) for nm in page_mask_names) + r')\s+Do\b'
                     clean_data = re.sub(pat, '', clean_data)
-                doc.update_stream(cx, clean_data.encode('latin-1'))
+                first_cx = contents[0]
+                doc.update_stream(first_cx, clean_data.encode('latin-1'))
+                for other_cx in contents[1:]:
+                    doc.update_stream(other_cx, b'')
+                if len(contents) > 1:
+                    doc.xref_set_key(page.xref, "Contents", f"{first_cx} 0 R")
             except Exception:
                 pass
 
