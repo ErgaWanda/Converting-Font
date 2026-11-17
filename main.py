@@ -710,19 +710,61 @@ def _is_bullet_span(text: str, font_str: str = '') -> bool:
         return True
     return False
 
+_TWO_CHAR_TEXT_OPS = frozenset({'Tj', 'TJ', 'Tf', 'Tc', 'Tw', 'Tz', 'TL', 'Tr', 'Ts', 'Td', 'TD', 'Tm', 'T*'})
+
 def _remove_text_from_content_stream(stream_text: str) -> str:
     out = []
     i = 0
     n = len(stream_text)
     in_text = False
-    bt_non_str = []
     while i < n:
         if not in_text:
-            if (i == 0 or stream_text[i-1] in PDF_DELIMITERS) and stream_text[i:i+2] == 'BT' and (i+2 == n or stream_text[i+2] in PDF_DELIMITERS):
-                in_text = True
-                bt_non_str = []
-                i += 2
+            if stream_text[i] == '%':
+                c_start = i
+                while i < n and stream_text[i] not in '\r\n':
+                    i += 1
+                out.append(stream_text[c_start:i])
                 continue
+            if stream_text[i] == '(':
+                str_start = i
+                i += 1
+                depth = 1
+                while i < n and depth > 0:
+                    if stream_text[i] == '\\':
+                        i += 2
+                    elif stream_text[i] == '(':
+                        depth += 1
+                        i += 1
+                    elif stream_text[i] == ')':
+                        depth -= 1
+                        i += 1
+                    else:
+                        i += 1
+                out.append(stream_text[str_start:i])
+                continue
+            if stream_text[i] == '<' and (i + 1 < n and stream_text[i+1] != '<'):
+                hex_start = i
+                i += 1
+                while i < n and stream_text[i] != '>':
+                    i += 1
+                if i < n:
+                    i += 1
+                out.append(stream_text[hex_start:i])
+                continue
+            if (i == 0 or stream_text[i-1] in PDF_DELIMITERS):
+                if stream_text[i:i+2] == 'BT' and (i+2 == n or stream_text[i+2] in PDF_DELIMITERS):
+                    in_text = True
+                    i += 2
+                    continue
+                if stream_text[i:i+2] == 'ET' and (i+2 == n or stream_text[i+2] in PDF_DELIMITERS):
+                    i += 2
+                    continue
+                if stream_text[i:i+2] in _TWO_CHAR_TEXT_OPS and (i+2 == n or stream_text[i+2] in PDF_DELIMITERS):
+                    i += 2
+                    continue
+                if stream_text[i] in ("'", '"') and (i+1 == n or stream_text[i+1] in PDF_DELIMITERS):
+                    i += 1
+                    continue
             out.append(stream_text[i])
             i += 1
         else:
@@ -750,19 +792,72 @@ def _remove_text_from_content_stream(stream_text: str) -> str:
                 continue
             elif (i == 0 or stream_text[i-1] in PDF_DELIMITERS) and stream_text[i:i+2] == 'ET' and (i+2 == n or stream_text[i+2] in PDF_DELIMITERS):
                 in_text = False
-                non_str_content = ''.join(bt_non_str)
-                state_ops = re.findall(r'(/[\w\#]+)\s+(cs|CS|gs|GS)\b', non_str_content)
-                if state_ops:
-                    out.append(' ' + ' '.join(f'{name} {op}' for name, op in state_ops) + ' ')
-                color_ops = re.findall(r'((?:[0-9\.\+\-]+\s+){1,4}(?:k|K|rg|RG|g|G|scn|SCN|sc|SC))\b', non_str_content)
-                if color_ops:
-                    out.append(' ' + ' '.join(color_ops) + ' ')
                 i += 2
                 continue
             else:
-                bt_non_str.append(stream_text[i])
                 i += 1
-    return ''.join(out)
+
+    clean_intermediate = ''.join(out)
+
+    q_out = []
+    j = 0
+    m = len(clean_intermediate)
+    q_depth = 0
+
+    while j < m:
+        if clean_intermediate[j] == '%':
+            c_start = j
+            while j < m and clean_intermediate[j] not in '\r\n':
+                j += 1
+            q_out.append(clean_intermediate[c_start:j])
+            continue
+        if clean_intermediate[j] == '(':
+            s_start = j
+            j += 1
+            depth = 1
+            while j < m and depth > 0:
+                if clean_intermediate[j] == '\\':
+                    j += 2
+                elif clean_intermediate[j] == '(':
+                    depth += 1
+                    j += 1
+                elif clean_intermediate[j] == ')':
+                    depth -= 1
+                    j += 1
+                else:
+                    j += 1
+            q_out.append(clean_intermediate[s_start:j])
+            continue
+        if clean_intermediate[j] == '<' and (j + 1 < m and clean_intermediate[j+1] != '<'):
+            h_start = j
+            j += 1
+            while j < m and clean_intermediate[j] != '>':
+                j += 1
+            if j < m:
+                j += 1
+            q_out.append(clean_intermediate[h_start:j])
+            continue
+
+        if (j == 0 or clean_intermediate[j-1] in PDF_DELIMITERS):
+            if clean_intermediate[j] == 'q' and (j+1 == m or clean_intermediate[j+1] in PDF_DELIMITERS):
+                q_depth += 1
+                q_out.append('q')
+                j += 1
+                continue
+            elif clean_intermediate[j] == 'Q' and (j+1 == m or clean_intermediate[j+1] in PDF_DELIMITERS):
+                if q_depth > 0:
+                    q_depth -= 1
+                    q_out.append('Q')
+                j += 1
+                continue
+
+        q_out.append(clean_intermediate[j])
+        j += 1
+
+    if q_depth > 0:
+        q_out.append('\n' + ' '.join(['Q'] * q_depth) + '\n')
+
+    return ''.join(q_out)
 
 def _clear_font_dict(obj_str: str) -> str:
     m = re.search(r'/Font\s*<<', obj_str)
@@ -822,6 +917,11 @@ def _get_uv_bbox(bbox, dx: float, dy: float) -> tuple[float, float, float, float
     cvs = [cx * (-dy) + cy * dx for cx, cy in corners]
     return (min(cus), max(cus), min(cvs), max(cvs))
 
+CONNECTIVE_WORDS = {
+    'atau', 'dan', 'dan/atau', 'serta', 'dan atau', 'atau;', 'dan;', 'dan/atau;',
+    'or', 'and', 'and/or', 'or;', 'and;', 'and/or;'
+}
+
 def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[bytes, int]:
     font_cfg = get_target_font(target_font)
     family_clean = font_cfg['family'].replace(' ', '')
@@ -850,11 +950,7 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     total_spans_converted = 0
 
-    for page in doc:
-        try:
-            page.clean_contents(sanitize=False)
-        except Exception:
-            pass
+    # Doc contents cleaning removed: PyMuPDF clean_contents corrupts q/Q graphics state stack on complex PDFs
 
     # Pre-pass: compute document-level column right margin for each page dimension/rotation
     doc_col_right_by_key = {}
@@ -1134,12 +1230,27 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
             if not grouped_lines:
                 continue
 
+            is_centered_block = False
+            if len(grouped_lines) >= 2:
+                centers = [(g_line["bbox_uv"][0] + g_line["bbox_uv"][1]) / 2.0 for g_line in grouped_lines]
+                widths = [g_line["bbox_uv"][1] - g_line["bbox_uv"][0] for g_line in grouped_lines]
+                if (max(centers) - min(centers) <= 10.0) and (max(widths) - min(widths) >= 15.0):
+                    is_centered_block = True
+
             block_max_u1 = max(g["bbox_uv"][1] for g in grouped_lines)
             target_right_u = block_max_u1
-            if page_col_right and (page_col_right - block_max_u1) <= 60.0:
+            block_min_u0 = min(g["bbox_uv"][0] for g in grouped_lines)
+            is_full_width_block = (not is_centered_block) and page_col_right and ((page_col_right - block_min_u0) >= 250.0)
+            if is_full_width_block and (page_col_right - block_max_u1) <= 120.0:
+                target_right_u = max(target_right_u, page_col_right)
+            elif (not is_centered_block) and page_col_right and (page_col_right - block_max_u1) <= 60.0:
                 target_right_u = max(target_right_u, page_col_right)
 
             aligned_end_count = sum(1 for g in grouped_lines if abs(g["bbox_uv"][1] - block_max_u1) <= 2.5 or (page_col_right and abs(g["bbox_uv"][1] - page_col_right) <= 2.5))
+            is_block_justified = (not is_centered_block) and (
+                (page_col_right is not None and abs(page_col_right - target_right_u) <= 20.0) or
+                aligned_end_count >= 2
+            )
 
             for gi, g in enumerate(grouped_lines):
                 spans = g["spans"]
@@ -1201,7 +1312,8 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                     next_s0 = next_g["spans"][0] if next_g["spans"] else None
                     if next_s0:
                         nt0 = next_s0.get("text", "").strip()
-                        if _is_bullet_span(nt0, next_s0.get("font", "")) or (len(next_words) <= 3 and bool(next_s0.get("flags", 0) & 16)):
+                        is_connective = (nt0.lower() in CONNECTIVE_WORDS or next_txt.lower() in CONNECTIVE_WORDS)
+                        if not is_connective and (_is_bullet_span(nt0, next_s0.get("font", "")) or (len(next_words) <= 3 and bool(next_s0.get("flags", 0) & 16))):
                             next_is_heading = True
                 is_paragraph_end = is_last_in_block or next_is_heading
 
@@ -1234,8 +1346,22 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                     sf_obj = get_font_obj(ff)
                     for rb in ROUND_BULLETS:
                         stext = stext.replace(rb, '\u2022')
+                    PUNCT_ATTACH = {',', '.', ';', ':', '!', '?', ')', ']', '}', '%', ',"', '."', '?' }
                     words = [w for w in stext.split() if w]
                     for w in words:
+                        if words_data and w in PUNCT_ATTACH:
+                            prev = words_data[-1]
+                            prev['word'] += w
+                            w_add = prev['f_obj'].text_length(w, fontsize=prev['sz']) if prev['f_obj'] else prev['sz'] * 0.5 * len(w)
+                            prev['w'] += w_add
+                            continue
+                        elif words_data and len(w) > 1 and w[0] in PUNCT_ATTACH and not (len(w) > 1 and w[1] in PUNCT_ATTACH):
+                            p_char = w[0]
+                            prev = words_data[-1]
+                            prev['word'] += p_char
+                            w_add = prev['f_obj'].text_length(p_char, fontsize=prev['sz']) if prev['f_obj'] else prev['sz'] * 0.5
+                            prev['w'] += w_add
+                            w = w[1:]
                         w_len = sf_obj.text_length(w, fontsize=sz) if sf_obj else sz * 0.5 * len(w)
                         words_data.append({
                             'word': w, 'fn': fn, 'ff': ff, 'sz': sz, 'color': color,
@@ -1249,17 +1375,13 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
 
                 full_line_txt = " ".join(wd['word'] for wd in words_data).strip()
                 is_label = full_line_txt.endswith(":") or full_line_txt.endswith("?")
-                is_centered_block = False
-                if len(grouped_lines) >= 2:
-                    centers = [(g_line["bbox_uv"][0] + g_line["bbox_uv"][1]) / 2.0 for g_line in grouped_lines]
-                    widths = [g_line["bbox_uv"][1] - g_line["bbox_uv"][0] for g_line in grouped_lines]
-                    if (max(centers) - min(centers) <= 2.5) and (max(widths) - min(widths) >= 4.0):
-                        is_centered_block = True
+
+                max_allowed_diff = 125.0 if is_block_justified else 65.0
                 is_justifiable_line = (
                     not is_paragraph_end and
-                    (orig_target_u1 - body_u0) >= 180.0 and
-                    (target_right_u - orig_target_u1) <= 60.0 and
-                    total_words >= 4 and
+                    (orig_target_u1 - body_u0) >= 120.0 and
+                    (target_right_u - orig_target_u1) <= max_allowed_diff and
+                    total_words >= 3 and
                     not has_square and
                     not is_label and
                     not is_centered_block
@@ -1269,47 +1391,55 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                 if is_justifiable_line:
                     just_target_w = target_right_u - body_u0
                     gaps = total_words - 1
-                    if gaps > 0 and just_target_w > total_words_w:
-                        gap_w = (just_target_w - total_words_w) / gaps
-                        if default_sp * 0.15 <= gap_w <= default_sp * 8.0:
-                            target_u1 = target_right_u
-                            target_w = just_target_w
-                            can_justify = True
-
-                if not can_justify:
-                    is_right_aligned = (aligned_end_count >= 2 and abs(orig_target_u1 - block_max_u1) <= 2.5) or any(abs(orig_target_u1 - cm) <= 2.5 for cm in common_margins)
-                    if is_right_aligned and not has_square and not is_label and not is_centered_block and total_words >= 4 and target_w > total_words_w:
-                        gaps = total_words - 1
-                        gap_w = (target_w - total_words_w) / gaps
-                        if default_sp * 0.15 <= gap_w <= default_sp * 12.0:
-                            can_justify = True
-
-                # body_scale: only downscale font if words themselves (without spaces) exceed available width.
-                # If words fit and only spaces make it exceed scale_ref_w, tighten word spacing instead of shrinking font size.
-                body_scale = 1.0
-                condensed_gaps = False
-                condensed_gap_w = default_sp
-                if not can_justify and (orig_target_u1 - body_u0) >= 180.0 and total_words >= 4 and target_w > 0:
-                    if page_col_right and page_col_right > body_u0:
-                        scale_ref_w = page_col_right - body_u0
-                    else:
-                        scale_ref_w = target_w
-                    gaps = total_words - 1
-                    natural_w = total_words_w + gaps * default_sp
-                    if natural_w > scale_ref_w * 1.005:
-                        min_needed_w = total_words_w + gaps * (default_sp * 0.45)
-                        if scale_ref_w >= min_needed_w:
-                            # Words fit! Tighten word spacing instead of shrinking font
-                            condensed_gaps = True
-                            condensed_gap_w = (scale_ref_w - total_words_w) / gaps
-                        else:
-                            # Words themselves are too wide; apply proportional downscaling
-                            body_scale = max(0.85, scale_ref_w / natural_w)
+                    if gaps > 0 and just_target_w > 0:
+                        ideal_w = total_words_w + gaps * default_sp
+                        if ideal_w > just_target_w * 1.005:
+                            body_scale = max(0.85, just_target_w / (total_words_w + gaps * (default_sp * 0.85)))
                             for wd in words_data:
                                 wd['sz'] *= body_scale
                                 wd['w'] = wd['f_obj'].text_length(wd['word'], fontsize=wd['sz']) if wd['f_obj'] else wd['sz'] * 0.5 * len(wd['word'])
                             total_words_w = sum(wd['w'] for wd in words_data)
                             default_sp = words_data[0]['f_obj'].text_length(' ', fontsize=words_data[0]['sz']) if words_data else 2.0
+                        gap_w = (just_target_w - total_words_w) / gaps
+                        max_gap_mult = 4.0 if is_block_justified else 3.5
+                        gap_w = max(default_sp * 0.70, min(gap_w, default_sp * max_gap_mult))
+                        target_u1 = target_right_u
+                        target_w = just_target_w
+                        can_justify = True
+
+                if not can_justify:
+                    is_right_aligned = (aligned_end_count >= 2 and abs(orig_target_u1 - block_max_u1) <= 8.0) or any(abs(orig_target_u1 - cm) <= 8.0 for cm in common_margins)
+                    if is_right_aligned and not has_square and not is_label and not is_centered_block and total_words >= 3:
+                        gaps = total_words - 1
+                        if gaps > 0 and target_w > 0:
+                            ideal_w = total_words_w + gaps * default_sp
+                            if ideal_w > target_w * 1.005:
+                                body_scale = max(0.85, target_w / (total_words_w + gaps * (default_sp * 0.85)))
+                                for wd in words_data:
+                                    wd['sz'] *= body_scale
+                                    wd['w'] = wd['f_obj'].text_length(wd['word'], fontsize=wd['sz']) if wd['f_obj'] else wd['sz'] * 0.5 * len(wd['word'])
+                                total_words_w = sum(wd['w'] for wd in words_data)
+                                default_sp = words_data[0]['f_obj'].text_length(' ', fontsize=words_data[0]['sz']) if words_data else 2.0
+                            gap_w = (target_w - total_words_w) / gaps
+                            gap_w = max(default_sp * 0.70, min(gap_w, default_sp * 3.5))
+                            can_justify = True
+
+                # For lines that are NOT justified (e.g. last line of a paragraph):
+                # Never squish gaps into orig_target_u1! Use normal default_sp spacing!
+                # Only downscale font if the line exceeds target_right_u!
+                if not can_justify:
+                    gaps = total_words - 1
+                    if gaps > 0 and total_words_w > 0:
+                        max_w = (target_right_u - body_u0) if (target_right_u and target_right_u > body_u0) else target_w
+                        natural_w = total_words_w + gaps * default_sp
+                        if max_w > 0 and natural_w > max_w * 1.005:
+                            body_scale = max(0.85, max_w / natural_w)
+                            for wd in words_data:
+                                wd['sz'] *= body_scale
+                                wd['w'] = wd['f_obj'].text_length(wd['word'], fontsize=wd['sz']) if wd['f_obj'] else wd['sz'] * 0.5 * len(wd['word'])
+                            total_words_w = sum(wd['w'] for wd in words_data)
+                            default_sp = words_data[0]['f_obj'].text_length(' ', fontsize=words_data[0]['sz']) if words_data else 2.0
+                        gap_w = default_sp
 
                 def add_prefix_span(p_span):
                     p_txt = p_span.get("text", "").strip()
@@ -1346,12 +1476,11 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                         pt = _point_from_uv(p_orig_u, p_orig_v, p_dx, p_dy)
                         elements_to_draw.append(('text', pt, p_txt, p_fn, p_ff, p_sz, p_col, p_rot))
 
-                if can_justify or condensed_gaps:
+                if (can_justify or (total_words >= 2 and not is_paragraph_end and not is_centered_block)) and not has_square:
                     if prefix_span:
                         add_prefix_span(prefix_span)
                     curr_u = body_u0
                     gaps = total_words - 1
-                    gap_w = (target_w - total_words_w) / gaps if can_justify else condensed_gap_w
                     for i, wd in enumerate(words_data):
                         word_pt = _point_from_uv(curr_u, wd['origin_v'], dx, dy)
                         elements_to_draw.append(('text', word_pt, wd['word'], wd['fn'], wd['ff'], wd['sz'], wd['color'], rot))
@@ -1494,7 +1623,10 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                         prev_t = prev_s.get("text", "") if prev_s else ""
                         prev_has_space = bool(prev_t and prev_t[-1].isspace())
                         curr_has_space = bool(text and text[0].isspace())
-                        if 0.5 < orig_gap <= 40.0:
+                        is_leading_punct = bool(text.lstrip() and text.lstrip()[0] in {',', '.', ';', ':', '!', '?', ')', ']', '}', '%'})
+                        if is_leading_punct:
+                            origin_u = prev_end_u
+                        elif 0.5 < orig_gap <= 40.0:
                             origin_u = prev_end_u + (sp_char_w if not (prev_has_space or curr_has_space) else 0.0)
                         elif orig_gap <= 0.5:
                             origin_u = prev_end_u + (0.05 if curr_has_space and not prev_has_space else 0.0)
@@ -1585,25 +1717,26 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
             pass
 
     for page_idx, page in enumerate(doc):
-        try:
-            page.clean_contents(sanitize=False)
-        except Exception:
-            pass
-
+        # clean_contents removed: PyMuPDF clean_contents corrupts q/Q graphics state stack
         p_obj = doc.xref_object(page.xref, compressed=False)
         m = re.search(r'/Resources\s+(\d+)\s+0\s+R', p_obj)
         res_str = doc.xref_object(int(m.group(1)), compressed=False) if m else p_obj
         page_mask_names = _find_mask_names(res_str)
 
         contents = page.get_contents()
-        for cx in contents:
+        if contents:
             try:
-                raw_data = doc.xref_stream(cx).decode('latin-1', errors='replace')
+                raw_data = b'\n'.join(doc.xref_stream(cx) for cx in contents).decode('latin-1', errors='replace')
                 clean_data = _remove_text_from_content_stream(raw_data)
                 if page_mask_names:
                     pat = r'/(?:' + '|'.join(re.escape(nm) for nm in page_mask_names) + r')\s+Do\b'
                     clean_data = re.sub(pat, '', clean_data)
-                doc.update_stream(cx, clean_data.encode('latin-1'))
+                first_cx = contents[0]
+                doc.update_stream(first_cx, clean_data.encode('latin-1'))
+                for other_cx in contents[1:]:
+                    doc.update_stream(other_cx, b'')
+                if len(contents) > 1:
+                    doc.xref_set_key(page.xref, "Contents", f"{first_cx} 0 R")
             except Exception:
                 pass
 
@@ -1644,11 +1777,7 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
         except Exception:
             pass
 
-    for page in doc:
-        try:
-            page.clean_contents(sanitize=False)
-        except Exception:
-            pass
+    # Doc contents cleaning removed: PyMuPDF clean_contents corrupts q/Q graphics state stack on complex PDFs
 
     try:
         doc.subset_fonts()
