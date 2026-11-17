@@ -917,6 +917,11 @@ def _get_uv_bbox(bbox, dx: float, dy: float) -> tuple[float, float, float, float
     cvs = [cx * (-dy) + cy * dx for cx, cy in corners]
     return (min(cus), max(cus), min(cvs), max(cvs))
 
+CONNECTIVE_WORDS = {
+    'atau', 'dan', 'dan/atau', 'serta', 'dan atau', 'atau;', 'dan;', 'dan/atau;',
+    'or', 'and', 'and/or', 'or;', 'and;', 'and/or;'
+}
+
 def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[bytes, int]:
     font_cfg = get_target_font(target_font)
     family_clean = font_cfg['family'].replace(' ', '')
@@ -1225,17 +1230,24 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
             if not grouped_lines:
                 continue
 
+            is_centered_block = False
+            if len(grouped_lines) >= 2:
+                centers = [(g_line["bbox_uv"][0] + g_line["bbox_uv"][1]) / 2.0 for g_line in grouped_lines]
+                widths = [g_line["bbox_uv"][1] - g_line["bbox_uv"][0] for g_line in grouped_lines]
+                if (max(centers) - min(centers) <= 10.0) and (max(widths) - min(widths) >= 15.0):
+                    is_centered_block = True
+
             block_max_u1 = max(g["bbox_uv"][1] for g in grouped_lines)
             target_right_u = block_max_u1
             block_min_u0 = min(g["bbox_uv"][0] for g in grouped_lines)
-            is_full_width_block = page_col_right and ((page_col_right - block_min_u0) >= 250.0)
+            is_full_width_block = (not is_centered_block) and page_col_right and ((page_col_right - block_min_u0) >= 250.0)
             if is_full_width_block and (page_col_right - block_max_u1) <= 120.0:
                 target_right_u = max(target_right_u, page_col_right)
-            elif page_col_right and (page_col_right - block_max_u1) <= 60.0:
+            elif (not is_centered_block) and page_col_right and (page_col_right - block_max_u1) <= 60.0:
                 target_right_u = max(target_right_u, page_col_right)
 
             aligned_end_count = sum(1 for g in grouped_lines if abs(g["bbox_uv"][1] - block_max_u1) <= 2.5 or (page_col_right and abs(g["bbox_uv"][1] - page_col_right) <= 2.5))
-            is_block_justified = (
+            is_block_justified = (not is_centered_block) and (
                 (page_col_right is not None and abs(page_col_right - target_right_u) <= 20.0) or
                 aligned_end_count >= 2
             )
@@ -1300,7 +1312,8 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                     next_s0 = next_g["spans"][0] if next_g["spans"] else None
                     if next_s0:
                         nt0 = next_s0.get("text", "").strip()
-                        if _is_bullet_span(nt0, next_s0.get("font", "")) or (len(next_words) <= 3 and bool(next_s0.get("flags", 0) & 16)):
+                        is_connective = (nt0.lower() in CONNECTIVE_WORDS or next_txt.lower() in CONNECTIVE_WORDS)
+                        if not is_connective and (_is_bullet_span(nt0, next_s0.get("font", "")) or (len(next_words) <= 3 and bool(next_s0.get("flags", 0) & 16))):
                             next_is_heading = True
                 is_paragraph_end = is_last_in_block or next_is_heading
 
@@ -1362,12 +1375,6 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
 
                 full_line_txt = " ".join(wd['word'] for wd in words_data).strip()
                 is_label = full_line_txt.endswith(":") or full_line_txt.endswith("?")
-                is_centered_block = False
-                if len(grouped_lines) >= 2:
-                    centers = [(g_line["bbox_uv"][0] + g_line["bbox_uv"][1]) / 2.0 for g_line in grouped_lines]
-                    widths = [g_line["bbox_uv"][1] - g_line["bbox_uv"][0] for g_line in grouped_lines]
-                    if (max(centers) - min(centers) <= 2.5) and (max(widths) - min(widths) >= 4.0):
-                        is_centered_block = True
 
                 max_allowed_diff = 125.0 if is_block_justified else 65.0
                 is_justifiable_line = (
@@ -1469,7 +1476,7 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                         pt = _point_from_uv(p_orig_u, p_orig_v, p_dx, p_dy)
                         elements_to_draw.append(('text', pt, p_txt, p_fn, p_ff, p_sz, p_col, p_rot))
 
-                if (can_justify or (total_words >= 2 and not is_paragraph_end)) and not has_square:
+                if (can_justify or (total_words >= 2 and not is_paragraph_end and not is_centered_block)) and not has_square:
                     if prefix_span:
                         add_prefix_span(prefix_span)
                     curr_u = body_u0

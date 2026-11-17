@@ -519,6 +519,50 @@ def test_backend_logic():
     doc_wrap_chk.close()
     print("Intermediate Wrapped Line Justification OK: Intermediate wrapped line aligned flush right with paragraph margin.")
 
+    # 8. Connective word ("atau", "dan") on next line does not suppress justification of preceding line
+    doc_conn = fitz.open()
+    p_conn = doc_conn.new_page(width=595.32, height=841.92)
+    p_conn.insert_text((84.0, 300), "a. Bunuh diri atau percobaan bunuh diri baik dalam keadaan sadar maupun tidak dalam waktu 2 (dua) tahun", fontname="helv", fontsize=9.0)
+    p_conn.insert_text((98.0, 315), "terhitung sejak Tanggal Berlakunya Polis, atau Tanggal Pemulihan Polis (mana yang terjadi paling akhir);", fontname="helv", fontsize=9.0)
+    p_conn.insert_text((98.0, 330), "atau", fontname="helv", fontsize=9.0)
+    conn_pdf_bytes = doc_conn.tobytes()
+    doc_conn.close()
+
+    conv_conn_bytes, _ = convert_pdf_to_font(conn_pdf_bytes, "roboto")
+    doc_conn_chk = fitz.open(stream=conv_conn_bytes, filetype="pdf")
+    c_lines = []
+    for b in doc_conn_chk[0].get_text("dict")["blocks"]:
+        for l in b.get("lines", []):
+            c_lines.append(l)
+    assert len(c_lines) >= 3
+    c0_right = c_lines[0]["bbox"][2]
+    c1_right = c_lines[1]["bbox"][2]
+    assert abs(c0_right - c1_right) <= 1.0, f"Expected line before 'atau' to align flush right with line 0: {c1_right} vs {c0_right}"
+    assert c_lines[2]["bbox"][2] < c0_right - 100.0, f"Expected 'atau' to stay short"
+    doc_conn_chk.close()
+    print("Connective Word Next Line Justification OK: Clause line before 'atau' aligns flush right.")
+
+    # 9. Centered block text preserves centering and does not stretch or overflow
+    doc_cnt = fitz.open()
+    p_cnt = doc_cnt.new_page(width=595.32, height=841.92)
+    # 2 centered lines inside a box (box width ~470, center ~297)
+    p_cnt.insert_text((100.0, 420), "Polis ini telah disesuaikan dengan ketentuan peraturan perundang-undangan termasuk ketentuan", fontname="helv", fontsize=9.0)
+    p_cnt.insert_text((226.0, 435), "Peraturan Otoritas Jasa Keuangan.", fontname="helv", fontsize=9.0)
+    cnt_pdf_bytes = doc_cnt.tobytes()
+    doc_cnt.close()
+
+    conv_cnt_bytes, _ = convert_pdf_to_font(cnt_pdf_bytes, "roboto")
+    doc_cnt_chk = fitz.open(stream=conv_cnt_bytes, filetype="pdf")
+    cnt_lines = []
+    for b in doc_cnt_chk[0].get_text("dict")["blocks"]:
+        for l in b.get("lines", []):
+            cnt_lines.append(l)
+    assert len(cnt_lines) >= 2
+    # Ensure line 0 did NOT get stretched across the entire page column (width should be ~390, not 437+)
+    assert cnt_lines[0]["bbox"][2] < 515.0, f"Expected centered line to stay bounded: right={cnt_lines[0]['bbox'][2]}"
+    doc_cnt_chk.close()
+    print("Centered Block Preservation OK: Centered lines remain centered and bounded without stretching.")
+
     print("ALL TESTS PASSED!")
 
 if __name__ == "__main__":
