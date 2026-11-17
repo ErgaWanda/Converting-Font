@@ -1227,10 +1227,18 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
 
             block_max_u1 = max(g["bbox_uv"][1] for g in grouped_lines)
             target_right_u = block_max_u1
-            if page_col_right and (page_col_right - block_max_u1) <= 60.0:
+            block_min_u0 = min(g["bbox_uv"][0] for g in grouped_lines)
+            is_full_width_block = page_col_right and ((page_col_right - block_min_u0) >= 250.0)
+            if is_full_width_block and (page_col_right - block_max_u1) <= 120.0:
+                target_right_u = max(target_right_u, page_col_right)
+            elif page_col_right and (page_col_right - block_max_u1) <= 60.0:
                 target_right_u = max(target_right_u, page_col_right)
 
             aligned_end_count = sum(1 for g in grouped_lines if abs(g["bbox_uv"][1] - block_max_u1) <= 2.5 or (page_col_right and abs(g["bbox_uv"][1] - page_col_right) <= 2.5))
+            is_block_justified = (
+                (page_col_right is not None and abs(page_col_right - target_right_u) <= 20.0) or
+                aligned_end_count >= 2
+            )
 
             for gi, g in enumerate(grouped_lines):
                 spans = g["spans"]
@@ -1361,10 +1369,11 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                     if (max(centers) - min(centers) <= 2.5) and (max(widths) - min(widths) >= 4.0):
                         is_centered_block = True
 
+                max_allowed_diff = 125.0 if is_block_justified else 65.0
                 is_justifiable_line = (
                     not is_paragraph_end and
                     (orig_target_u1 - body_u0) >= 120.0 and
-                    (target_right_u - orig_target_u1) <= 65.0 and
+                    (target_right_u - orig_target_u1) <= max_allowed_diff and
                     total_words >= 3 and
                     not has_square and
                     not is_label and
@@ -1385,7 +1394,8 @@ def convert_pdf_to_font(pdf_bytes: bytes, target_font: str = "roboto") -> tuple[
                             total_words_w = sum(wd['w'] for wd in words_data)
                             default_sp = words_data[0]['f_obj'].text_length(' ', fontsize=words_data[0]['sz']) if words_data else 2.0
                         gap_w = (just_target_w - total_words_w) / gaps
-                        gap_w = max(default_sp * 0.70, min(gap_w, default_sp * 3.5))
+                        max_gap_mult = 4.0 if is_block_justified else 3.5
+                        gap_w = max(default_sp * 0.70, min(gap_w, default_sp * max_gap_mult))
                         target_u1 = target_right_u
                         target_w = just_target_w
                         can_justify = True

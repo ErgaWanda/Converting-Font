@@ -488,6 +488,37 @@ def test_backend_logic():
     doc_jm_chk.close()
     print("Full Justification Alignment OK: Multi-line paragraph non-last lines aligned flush on right margin.")
 
+    # 7. Intermediate Wrapped Line Justification in Multi-line Paragraph (e.g. 75px short due to word wrap)
+    doc_wrap = fitz.open()
+    p_wrap = doc_wrap.new_page(width=595.32, height=841.92)
+    # Line 0: flush right to ~535
+    p_wrap.insert_text((98.0, 300), "Dalam hal dokumen yang disampaikan dan/atau informasi pada dokumen klaim yang diterima Penanggung", fontname="helv", fontsize=9.0)
+    # Line 1: ends ~75px short in original due to wrapped next word ("maksimum")
+    p_wrap.insert_text((98.0, 315), "tidak lengkap, maka pengajuan kelengkapan dokumen klaim harus diserahkan kepada Penanggung", fontname="helv", fontsize=9.0)
+    # Line 2: flush right to ~535
+    p_wrap.insert_text((98.0, 330), "maksimum dalam jangka waktu 30 (tiga puluh) hari sejak tanggal surat pemberitahuan ketidaklengkapan", fontname="helv", fontsize=9.0)
+    # Line 3: paragraph end
+    p_wrap.insert_text((98.0, 345), "dokumen klaim dari Penanggung. Salinan dokumen tidak berlaku.", fontname="helv", fontsize=9.0)
+    wrap_pdf_bytes = doc_wrap.tobytes()
+    doc_wrap.close()
+
+    conv_wrap_bytes, _ = convert_pdf_to_font(wrap_pdf_bytes, "roboto")
+    doc_wrap_chk = fitz.open(stream=conv_wrap_bytes, filetype="pdf")
+    d_wrap = doc_wrap_chk[0].get_text("dict")
+    w_lines = []
+    for b in d_wrap["blocks"]:
+        for l in b.get("lines", []):
+            w_lines.append(l)
+    assert len(w_lines) >= 4
+    w0_right = w_lines[0]["bbox"][2]
+    w1_right = w_lines[1]["bbox"][2]
+    w2_right = w_lines[2]["bbox"][2]
+    assert abs(w0_right - w1_right) <= 1.0, f"Expected wrapped middle line 1 to align flush right with line 0: {w1_right} vs {w0_right}"
+    assert abs(w0_right - w2_right) <= 1.0, f"Expected line 2 to align flush right with line 0: {w2_right} vs {w0_right}"
+    assert w_lines[3]["bbox"][2] < w0_right - 50.0, f"Expected paragraph end line to stay un-stretched"
+    doc_wrap_chk.close()
+    print("Intermediate Wrapped Line Justification OK: Intermediate wrapped line aligned flush right with paragraph margin.")
+
     print("ALL TESTS PASSED!")
 
 if __name__ == "__main__":
